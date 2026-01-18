@@ -1,0 +1,40 @@
+Subject: VPS Stuck in Rescue Mode - Unable to Reboot or Access Normal System
+
+Dear OVH Support Team,
+
+I am experiencing critical issues with my VPS (vps-ec36a417.vps.ovh.net, IP: 141.227.152.143) and urgently need assistance.
+
+**Problem Description:**
+My VPS is stuck in rescue mode and I cannot boot it into normal mode or access the system with my credentials.
+
+**What I've tried:**
+1. Changed root password via rescue mode using chroot
+2. Attempted to switch Boot mode from RESCUE to HARD DISK in the control panel
+3. Tried to reboot the VPS multiple times
+4. Used force reboot commands (reboot -f, sync)
+5. Waited for system to fully restart
+
+**Current Issues:**
+- VPS remains stuck in rescue mode after every reboot
+- Control panel shows error: "Action not available while there are running tasks on the VPS" when trying to reboot
+- Cannot change boot mode from RESCUE to normal boot
+- New password set in rescue mode doesn't work when VPS boots normally
+- VPS appears to have background tasks running that prevent any operations
+
+**What I need:**
+- Force the VPS out of rescue mode and into normal boot mode
+- OR completely reinstall the VPS with Ubuntu 22.04 or 24.04 LTS (I have backups of all data)
+- Ensure the VPS can boot normally and accept SSH connections with root credentials
+
+**VPS Details:**
+- Server: vps-ec36a417.vps.ovh.net
+- IP: 141.227.152.143
+- Current OS: Ubuntu 25.04
+- Model: VPS-1
+- Location: Amsterdam
+
+This issue has been ongoing for several hours and is blocking critical work. I would appreciate urgent assistance to resolve this.
+
+Thank you for your help.
+
+Best regards

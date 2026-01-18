@@ -1,0 +1,32 @@
+[
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "enabled": true
+  },
+  {
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "enabled": true
+  },
+  {
+    "name": "AI News",
+    "url": "https://www.artificialintelligence-news.com/feed/",
+    "enabled": true
+  },
+  {
+    "name": "Crunchbase AI",
+    "url": "https://news.crunchbase.com/sections/ai/feed/",
+    "enabled": true
+  },
+  {
+    "name": "MIT Tech Review AI",
+    "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
+    "enabled": true
+  },
+  {
+    "name": "Last Week in AI",
+    "url": "https://lastweekin.ai/feed",
+    "enabled": true
+  }
+]

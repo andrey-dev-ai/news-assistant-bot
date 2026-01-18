@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/*.db
+logs/*.log
+.env.example
+README.md
+DEPLOY_VPS.md
+QUICK_START.md
+COMMANDS.md
+CHANGELOG.md
+
+# Temp files
+tmpclaude-*
