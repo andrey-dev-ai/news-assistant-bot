@@ -1,10 +1,23 @@
 """RSS feed parser for collecting AI news."""
 
-import feedparser
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict
+from time import mktime
+from typing import Dict, List, Optional
+
+import feedparser
+import requests
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from logger import get_logger
+
+logger = get_logger("news_bot.rss")
 
 
 class RSSParser:
@@ -20,8 +33,34 @@ class RSSParser:
         if not self.config_path.exists():
             raise FileNotFoundError(f"Config file not found: {self.config_path}")
 
-        with open(self.config_path, 'r', encoding='utf-8') as f:
+        with open(self.config_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(
+            (requests.RequestException, requests.Timeout, ConnectionError)
+        ),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Retry {retry_state.attempt_number} for RSS feed: "
+            f"{retry_state.outcome.exception()}"
+        ),
+    )
+    def _fetch_feed(self, url: str, timeout: int = 30) -> feedparser.FeedParserDict:
+        """
+        Fetch RSS feed with retry logic and timeout.
+
+        Args:
+            url: RSS feed URL
+            timeout: Request timeout in seconds
+
+        Returns:
+            Parsed feed data
+        """
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        return feedparser.parse(response.content)
 
     def fetch_recent_news(self, hours: int = 24) -> List[Dict]:
         """
@@ -37,12 +76,12 @@ class RSSParser:
         all_articles = []
 
         for feed in self.feeds:
-            if not feed.get('enabled', True):
+            if not feed.get("enabled", True):
                 continue
 
             try:
-                print(f"Fetching from {feed['name']}...")
-                parsed = feedparser.parse(feed['url'])
+                logger.info(f"Fetching from {feed['name']}...")
+                parsed = self._fetch_feed(feed["url"])
 
                 for entry in parsed.entries:
                     # Parse publication date
@@ -53,34 +92,31 @@ class RSSParser:
                         continue
 
                     article = {
-                        'title': entry.get('title', 'No title'),
-                        'link': entry.get('link', ''),
-                        'summary': entry.get('summary', ''),
-                        'published': pub_date.isoformat() if pub_date else None,
-                        'source': feed['name']
+                        "title": entry.get("title", "No title"),
+                        "link": entry.get("link", ""),
+                        "summary": entry.get("summary", ""),
+                        "published": pub_date.isoformat() if pub_date else None,
+                        "source": feed["name"],
                     }
                     all_articles.append(article)
 
             except Exception as e:
-                print(f"Error fetching {feed['name']}: {e}")
+                logger.error(f"Error fetching {feed['name']}: {e}")
                 continue
 
         # Sort by publication date (newest first)
         all_articles.sort(
-            key=lambda x: x['published'] if x['published'] else '',
-            reverse=True
+            key=lambda x: x["published"] if x["published"] else "", reverse=True
         )
 
-        print(f"Collected {len(all_articles)} articles")
+        logger.info(f"Collected {len(all_articles)} articles")
         return all_articles
 
-    def _parse_date(self, entry) -> datetime:
+    def _parse_date(self, entry) -> Optional[datetime]:
         """Parse publication date from feed entry."""
-        if hasattr(entry, 'published_parsed') and entry.published_parsed:
-            from time import mktime
+        if hasattr(entry, "published_parsed") and entry.published_parsed:
             return datetime.fromtimestamp(mktime(entry.published_parsed))
-        elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
-            from time import mktime
+        elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
             return datetime.fromtimestamp(mktime(entry.updated_parsed))
         return None
 

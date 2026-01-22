@@ -134,10 +134,16 @@ nano .env
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-ваш-ключ-claude
+OPENAI_API_KEY=sk-ваш-ключ-openai
 TELEGRAM_BOT_TOKEN=ваш-токен-бота
 TELEGRAM_USER_ID=ваш-telegram-id
-DIGEST_TIMES=08:00
+TELEGRAM_CHANNEL_ID=@ai_dlya_doma
+PUBLISH_TIMES=09:00,12:00,15:00,18:00,21:00
+LOG_LEVEL=INFO
+TZ=Europe/Moscow
 ```
+
+**Важно:** `OPENAI_API_KEY` нужен для генерации картинок через GPT Image 1 Mini.
 
 Сохраните: `Ctrl+O` → Enter → `Ctrl+X`
 
@@ -233,6 +239,8 @@ systemctl status ai-news-bot
 
 Когда нужно обновить код:
 
+### Быстрое обновление (для текущих изменений)
+
 ```bash
 # Остановить бота
 systemctl stop ai-news-bot
@@ -240,11 +248,37 @@ systemctl stop ai-news-bot
 # Перейти в папку
 cd /opt/ai-bots/news-assistant-bot
 
-# Обновить файлы (через WinSCP или git pull)
+# Активировать виртуальное окружение
+source venv/bin/activate
+
+# Обновить зависимости (если добавились новые)
+pip install -r requirements.txt
+
+# Создать папку для картинок (если не существует)
+mkdir -p data/images
 
 # Перезапустить
 systemctl start ai-news-bot
+
+# Проверить статус
+systemctl status ai-news-bot
 ```
+
+### Обновление через Git
+
+```bash
+cd /opt/ai-bots/news-assistant-bot
+git pull origin main
+source venv/bin/activate
+pip install -r requirements.txt
+systemctl restart ai-news-bot
+```
+
+### Обновление через WinSCP
+
+1. Остановить бота: `systemctl stop ai-news-bot`
+2. Загрузить изменённые файлы через WinSCP
+3. На сервере: `systemctl start ai-news-bot`
 
 ---
 

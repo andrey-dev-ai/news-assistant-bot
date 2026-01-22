@@ -1,0 +1,169 @@
+# ============================================
+# AI ДЛЯ ДОМА — RSS источники
+# ============================================
+
+# Приоритет 1 — Ежедневный сбор (каждые 30-60 мин)
+priority_1:
+  - name: "VC.ru AI"
+    url: "https://vc.ru/rss/rubric/ai"
+    language: "ru"
+    relevance: 9
+    fetch_interval_minutes: 30
+    enabled: true
+
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    language: "en"
+    relevance: 9
+    fetch_interval_minutes: 60
+    enabled: true
+
+  - name: "THE DECODER"
+    url: "https://the-decoder.com/feed/"
+    language: "en"
+    relevance: 9
+    fetch_interval_minutes: 60
+    enabled: true
+
+# Приоритет 2 — 2-3 раза в день
+priority_2:
+  - name: "TechCrunch AI"
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 120
+    enabled: true
+
+  - name: "Хабр AI"
+    url: "https://habr.com/ru/rss/hub/artificial_intelligence/all/"
+    language: "ru"
+    relevance: 5
+    fetch_interval_minutes: 60
+    enabled: true
+
+  - name: "Product Hunt"
+    url: "https://www.producthunt.com/feed"
+    language: "en"
+    relevance: 8
+    fetch_interval_minutes: 120
+    enabled: true
+
+  - name: "VentureBeat AI"
+    url: "https://venturebeat.com/category/ai/feed/"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 60
+    enabled: true
+
+  - name: "AI News"
+    url: "https://www.artificialintelligence-news.com/feed/"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 60
+    enabled: true
+
+# Приоритет 3 — Раз в день
+priority_3:
+  - name: "MIT Tech Review"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    language: "en"
+    relevance: 6
+    fetch_interval_minutes: 120
+    enabled: true
+
+  - name: "Last Week in AI"
+    url: "https://lastweekin.ai/feed"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 120
+    enabled: true
+
+  - name: "Tproger"
+    url: "https://tproger.ru/feed/"
+    language: "ru"
+    relevance: 5
+    fetch_interval_minutes: 60
+    enabled: true
+
+# YouTube каналы (RSS формат)
+youtube:
+  - name: "Matt Wolfe"
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCJIfeSCssxSC_Dhc5s7woww"
+    language: "en"
+    relevance: 8
+    fetch_interval_minutes: 360
+    enabled: true
+
+  - name: "The AI Advantage"
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCjq5_p9FKPuNrY0-YrNvxNA"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 360
+    enabled: true
+
+  - name: "AI Jason"
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfvG0JD0mJqLJpMpJQWyhWw"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 360
+    enabled: true
+
+# Telegram-каналы для парсинга (опционально)
+telegram_channels:
+  - name: "@neural_houses"
+    url: "https://t.me/s/neural_houses"
+    language: "ru"
+    relevance: 10
+    enabled: false  # Требует отдельной настройки парсинга
+
+  - name: "@TochkiNadAI"
+    url: "https://t.me/s/TochkiNadAI"
+    language: "ru"
+    relevance: 10
+    enabled: false
+
+  - name: "@nikolai_pro_ai"
+    url: "https://t.me/s/nikolai_pro_ai"
+    language: "ru"
+    relevance: 10
+    enabled: false
+
+  - name: "@neuraldvig"
+    url: "https://t.me/s/neuraldvig"
+    language: "ru"
+    relevance: 9
+    enabled: false
+
+  - name: "@gptmain"
+    url: "https://t.me/s/gptmain"
+    language: "ru"
+    relevance: 8
+    enabled: false
+
+# Агрегаторы AI-инструментов
+aggregators:
+  - name: "There's An AI For That"
+    url: "https://theresanaiforthat.com/api/search/"
+    type: "api"
+    enabled: false  # Требует API интеграции
+
+  - name: "Product Hunt AI"
+    url: "https://www.producthunt.com/feed?category=ai"
+    type: "rss"
+    enabled: true
+
+# Reddit (RSS формат)
+reddit:
+  - name: "r/ChatGPT"
+    url: "https://www.reddit.com/r/ChatGPT/.rss"
+    language: "en"
+    relevance: 7
+    fetch_interval_minutes: 120
+    enabled: false
+
+  - name: "r/AItools"
+    url: "https://www.reddit.com/r/AItools/new/.rss"
+    language: "en"
+    relevance: 8
+    fetch_interval_minutes: 120
+    enabled: false

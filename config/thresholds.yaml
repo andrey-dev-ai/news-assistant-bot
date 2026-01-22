@@ -1,0 +1,77 @@
+# ============================================
+# AI ДЛЯ ДОМА — Пороговые значения
+# ============================================
+
+# Оценка релевантности
+relevance:
+  min_score: 6.0              # Минимальный скор для обработки
+  high_priority_score: 8.0    # Высокий приоритет публикации
+  auto_publish_score: 9.0     # Автопубликация без модерации
+
+# Дедупликация
+deduplication:
+  hash_enabled: true          # Проверка по хешу
+  semantic_enabled: false     # Семантическая проверка (sqlite-vec)
+  similarity_threshold: 0.90  # Порог косинусного сходства
+  time_window_days: 14        # Сравнивать с контентом за N дней
+  title_similarity: 0.85      # Порог сходства заголовков
+
+# Контент
+content:
+  min_length_chars: 100       # Минимальная длина оригинала
+  max_length_chars: 10000     # Максимальная длина оригинала
+  max_post_length: 1500       # Максимум символов в посте
+  min_post_length: 200        # Минимум символов в посте
+
+# Telegram
+telegram:
+  max_post_length: 4096       # Лимит Telegram
+  rate_limit_seconds: 1.2     # Пауза между сообщениями
+  retry_attempts: 5           # Попытки при ошибке
+  retry_backoff_base: 2       # База экспоненциального backoff
+  max_messages_per_minute: 20 # Лимит сообщений в минуту
+
+# API лимиты
+api:
+  claude_timeout_seconds: 30
+  dalle_timeout_seconds: 60
+  max_retries: 3
+  backoff_multiplier: 2
+  min_wait_seconds: 4
+  max_wait_seconds: 60
+
+# Модерация
+moderation:
+  auto_approve_threshold: 7.0    # Автоодобрение при качестве >=
+  manual_review_range: [5.0, 7.0] # Ручная проверка в диапазоне
+  auto_reject_threshold: 5.0     # Автоотклонение при качестве <
+  confidence_threshold: 70       # Минимальная уверенность классификатора
+
+# Мониторинг
+monitoring:
+  alert_no_posts_hours: 4     # Алерт если нет публикаций > N часов
+  alert_api_errors_hourly: 10 # Алерт при > N ошибок API в час
+  alert_dedup_rate: 0.80      # Алерт если отфильтровано > 80%
+  alert_queue_min: 5          # Алерт если в очереди < N постов
+
+# Качество
+quality:
+  min_quality_score: 7        # Минимальный скор качества 1-10
+  max_emoji_count: 5          # Максимум emoji в посте
+  required_elements:
+    - emoji_in_title
+    - call_to_action
+    - hashtags
+
+# Стоимость (для мониторинга бюджета)
+costs:
+  claude_haiku_input_1k: 0.00025   # $ за 1K входных токенов
+  claude_haiku_output_1k: 0.00125  # $ за 1K выходных токенов
+  claude_sonnet_input_1k: 0.003    # $ за 1K входных токенов
+  claude_sonnet_output_1k: 0.015   # $ за 1K выходных токенов
+  # GPT Image 1 Mini (medium quality, 1024x1024)
+  gpt_image_mini_medium: 0.013     # $ за изображение
+  gpt_image_mini_low: 0.006        # $ за изображение (эконом)
+  gpt_image_mini_high: 0.044       # $ за изображение (премиум)
+  monthly_budget: 15.0             # Бюджет в $ на месяц (снизили благодаря Mini)
+  alert_budget_threshold: 0.80     # Алерт при использовании > 80% бюджета

@@ -1,0 +1,201 @@
+{
+  "test_cases": [
+    {
+      "id": "relevant_ai_tool_canva",
+      "article": {
+        "title": "Canva Launches Free AI Photo Editor for Instagram",
+        "source": "TechCrunch",
+        "summary": "Canva announced a new AI-powered photo editor that can automatically enhance photos, remove backgrounds, and suggest Instagram-ready filters. The tool is free for basic use and perfect for social media creators.",
+        "link": "https://techcrunch.com/canva-ai-editor"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 75,
+        "expected_category": "tool",
+        "expected_format": "ai_tool"
+      },
+      "expected_post_format": "ai_tool",
+      "description": "Consumer AI tool for photo editing - should be highly relevant"
+    },
+    {
+      "id": "relevant_chatgpt_update",
+      "article": {
+        "title": "ChatGPT Now Lets You Create Custom GPTs for Free",
+        "source": "The Verge",
+        "summary": "OpenAI announced that free users can now create custom GPTs without a Plus subscription. This opens up personalized AI assistants to everyone.",
+        "link": "https://theverge.com/chatgpt-custom-gpts"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 80,
+        "expected_category": "tool",
+        "expected_format": "ai_tool"
+      },
+      "expected_post_format": "ai_tool",
+      "description": "ChatGPT consumer feature - highly relevant"
+    },
+    {
+      "id": "relevant_writing_assistant",
+      "article": {
+        "title": "This Free AI Tool Writes Perfect Emails in Seconds",
+        "source": "ProductHunt",
+        "summary": "New AI email assistant that helps you write professional emails quickly. Works with Gmail and Outlook. Free tier available.",
+        "link": "https://producthunt.com/ai-email-tool"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 70,
+        "expected_category": "tool",
+        "expected_format": "ai_tool"
+      },
+      "expected_post_format": "ai_tool",
+      "description": "Email writing tool - practical consumer use case"
+    },
+    {
+      "id": "irrelevant_enterprise_b2b",
+      "article": {
+        "title": "New Enterprise AI Platform for Sales Teams",
+        "source": "VentureBeat",
+        "summary": "Enterprise-grade AI solution for B2B sales teams. Pricing starts at $500/month per seat. Requires integration with Salesforce CRM.",
+        "link": "https://venturebeat.com/enterprise-ai"
+      },
+      "expected_classification": {
+        "relevant": false,
+        "max_confidence": 40,
+        "expected_category": "enterprise"
+      },
+      "description": "Enterprise B2B solution - should be filtered out"
+    },
+    {
+      "id": "irrelevant_developer_sdk",
+      "article": {
+        "title": "New Python SDK for Building AI Applications",
+        "source": "GitHub Blog",
+        "summary": "A new Python framework for ML engineers. Supports PyTorch and TensorFlow integration. Full API documentation available.",
+        "link": "https://github.blog/ai-sdk"
+      },
+      "expected_classification": {
+        "relevant": false,
+        "max_confidence": 30,
+        "expected_category": "developer"
+      },
+      "description": "Developer SDK - not for consumers"
+    },
+    {
+      "id": "irrelevant_crypto_ai",
+      "article": {
+        "title": "AI-Powered Crypto Trading Bot Promises 100% Returns",
+        "source": "CryptoNews",
+        "summary": "New AI trading bot that automatically trades cryptocurrencies. Requires $1000 minimum deposit.",
+        "link": "https://cryptonews.com/ai-trading"
+      },
+      "expected_classification": {
+        "relevant": false,
+        "max_confidence": 20,
+        "expected_category": "crypto"
+      },
+      "description": "Crypto trading - explicitly excluded"
+    },
+    {
+      "id": "edge_case_listicle",
+      "article": {
+        "title": "10 Best AI Tools for Productivity in 2024",
+        "source": "Lifehacker",
+        "summary": "A roundup of the best AI tools to boost your productivity this year. Includes free and paid options.",
+        "link": "https://lifehacker.com/ai-tools-2024"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 60,
+        "max_confidence": 75,
+        "needs_review": true
+      },
+      "description": "Listicle - relevant but needs review"
+    },
+    {
+      "id": "edge_case_model_announcement",
+      "article": {
+        "title": "OpenAI Releases GPT-5 with New API Features",
+        "source": "TechCrunch",
+        "summary": "OpenAI announced GPT-5 with improved reasoning capabilities. New API features include function calling 2.0.",
+        "link": "https://techcrunch.com/gpt-5"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 50,
+        "max_confidence": 70,
+        "needs_review": true
+      },
+      "description": "Model announcement - relevant if consumer features, exclude if API-only"
+    },
+    {
+      "id": "quick_tip_format",
+      "article": {
+        "title": "ChatGPT Trick: Use This Prompt for Better Responses",
+        "source": "Reddit",
+        "summary": "A simple prompt trick that makes ChatGPT give much better and more detailed responses.",
+        "link": "https://reddit.com/r/chatgpt/tip"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 70,
+        "expected_format": "quick_tip"
+      },
+      "expected_post_format": "quick_tip",
+      "description": "Should be formatted as quick tip"
+    },
+    {
+      "id": "prompt_day_format",
+      "article": {
+        "title": "The Perfect ChatGPT Prompt for Writing Cover Letters",
+        "source": "LinkedIn",
+        "summary": "Copy this exact prompt to generate professional cover letters with ChatGPT. Works every time.",
+        "link": "https://linkedin.com/chatgpt-cover-letter"
+      },
+      "expected_classification": {
+        "relevant": true,
+        "min_confidence": 75,
+        "expected_format": "prompt_day"
+      },
+      "expected_post_format": "prompt_day",
+      "description": "Should be formatted as prompt of the day"
+    }
+  ],
+  "anti_patterns": [
+    "нейросеть",
+    "революционный",
+    "уникальный",
+    "лучший в мире",
+    "представляем вам",
+    "встречайте",
+    "данный инструмент",
+    "является",
+    "осуществляет",
+    "позволяет осуществить"
+  ],
+  "required_elements": {
+    "ai_tool": {
+      "header": "AI-находка дня",
+      "required_sections": [
+        "Попробовать:"
+      ],
+      "optional_sections": [
+        "💰"
+      ],
+      "max_length": 600
+    },
+    "quick_tip": {
+      "header": "Быстрый совет",
+      "required_sections": [],
+      "max_length": 400
+    },
+    "prompt_day": {
+      "header": "Промт дня",
+      "required_sections": [
+        "Промт для ChatGPT",
+        "Копируй"
+      ],
+      "max_length": 600
+    }
+  }
+}

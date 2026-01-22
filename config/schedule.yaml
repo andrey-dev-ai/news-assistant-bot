@@ -1,0 +1,96 @@
+# ============================================
+# AI ДЛЯ ДОМА — Расписание публикаций
+# ============================================
+
+# Общие настройки
+settings:
+  timezone: "Europe/Moscow"
+  posts_per_day: 5
+  min_interval_hours: 2
+
+# Расписание публикаций
+publish_times:
+  - time: "09:00"
+    preferred_categories:
+      - "planning"
+      - "kids"
+    description: "Утренний пост - планирование дня"
+
+  - time: "12:00"
+    preferred_categories:
+      - "kitchen"
+      - "home"
+    description: "Обеденный пост - домашние дела"
+
+  - time: "15:00"
+    preferred_categories:
+      - "kids"
+      - "planning"
+    description: "Дневной пост - дети и задачи"
+
+  - time: "18:00"
+    preferred_categories:
+      - "kitchen"
+      - "finance"
+    description: "Вечерний пост - ужин и финансы"
+
+  - time: "21:00"
+    preferred_categories:
+      - "home"
+      - "planning"
+    description: "Ночной пост - организация и планы"
+
+# Расписание сбора контента
+fetch_schedule:
+  rss_ru:
+    cron: "*/30 * * * *"  # Каждые 30 минут
+    description: "Сбор русскоязычных RSS"
+    enabled: true
+
+  rss_en:
+    cron: "0 */2 * * *"   # Каждые 2 часа
+    description: "Сбор англоязычных RSS"
+    enabled: true
+
+  content_process:
+    cron: "15 * * * *"    # 15 минут каждого часа
+    description: "Обработка и классификация контента"
+    enabled: true
+
+  image_generate:
+    cron: "45 */4 * * *"  # Каждые 4 часа
+    description: "Генерация изображений DALL-E"
+    enabled: true
+
+# Буфер постов
+buffer:
+  min_posts: 14           # Минимум постов в буфере (2 дня)
+  target_posts: 35        # Целевой размер буфера (7 дней)
+  alert_threshold: 14     # Алерт если меньше этого числа
+  emergency_reserve: 30   # Аварийный резерв постов
+
+# Балансировка форматов
+format_balance:
+  max_same_format_in_row: 2  # Максимум одинаковых форматов подряд
+  daily_distribution:
+    ai_tool: 2       # AI-находка дня
+    quick_tip: 2     # Быстрый совет
+    prompt_day: 1    # Промпт дня (только по понедельникам)
+
+# Выходные и праздники
+special_days:
+  weekends:
+    reduce_posts_to: 3    # Меньше постов в выходные
+    skip_categories:
+      - "finance"         # Не постить про финансы в выходные
+
+  holidays:
+    # Новый год
+    "01-01":
+      posts: 2
+      theme: "Новогодние AI-лайфхаки"
+
+    # 8 марта
+    "03-08":
+      posts: 3
+      theme: "AI для женщин"

@@ -1,0 +1,505 @@
+"""Generate individual posts from news articles for @ai_dlya_mamy channel."""
+
+import json
+import os
+import re
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+from anthropic import (
+    Anthropic,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+)
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from logger import get_logger
+
+logger = get_logger("news_bot.post_generator")
+
+
+def parse_classifier_response(response_text: str) -> dict:
+    """
+    Parse classifier response with error handling.
+    Returns default response if LLM returned invalid JSON.
+    """
+    DEFAULT_RESPONSE = {
+        "relevant": False,
+        "confidence": 0,
+        "category": "parse_error",
+        "format": "ai_tool",
+        "reason": "Failed to parse LLM response",
+        "needs_review": True,
+        "url_check_needed": True,
+    }
+
+    try:
+        # Remove markdown code blocks if present
+        cleaned = re.sub(r"^```json\s*", "", response_text.strip())
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+        # Try to find JSON in text
+        json_match = re.search(r"\{[^{}]*\}", cleaned, re.DOTALL)
+        if json_match:
+            cleaned = json_match.group()
+
+        data = json.loads(cleaned)
+
+        # Validate required fields
+        if "relevant" not in data or "confidence" not in data:
+            data = DEFAULT_RESPONSE.copy()
+            data["reason"] = "Missing required fields"
+            return data
+
+        # Normalize confidence to 0-100
+        data["confidence"] = max(0, min(100, int(data.get("confidence", 0))))
+
+        # Defaults for optional fields
+        data.setdefault("category", "unknown")
+        data.setdefault("format", "ai_tool")
+        data.setdefault("reason", "")
+        data.setdefault("needs_review", data["confidence"] < 70)
+        data.setdefault("url_check_needed", False)
+
+        return data
+
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        response = DEFAULT_RESPONSE.copy()
+        response["reason"] = f"JSON parse error: {str(e)[:50]}"
+        return response
+
+
+class PostFormat(Enum):
+    """Types of posts for the channel."""
+    AI_TOOL = "ai_tool"          # AI-находка дня
+    QUICK_TIP = "quick_tip"      # Быстрый совет
+    PROMPT_DAY = "prompt_day"    # Промт дня
+    COMPARISON = "comparison"    # Сравнение
+    CHECKLIST = "checklist"      # Чек-лист
+
+
+@dataclass
+class GeneratedPost:
+    """A generated post ready for publication."""
+    text: str
+    format: PostFormat
+    article_url: str
+    article_title: str
+    image_prompt: Optional[str] = None
+
+
+class PostGenerator:
+    """Generate beautiful posts for Telegram channel."""
+
+    def __init__(self, api_key: str = None):
+        """Initialize with Anthropic API."""
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise ValueError("ANTHROPIC_API_KEY not found")
+
+        self.client = Anthropic(api_key=self.api_key)
+        self.haiku_model = "claude-3-haiku-20240307"
+        self.sonnet_model = "claude-sonnet-4-20250514"
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_type(
+            (RateLimitError, APIConnectionError, APITimeoutError)
+        ),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Claude API retry {retry_state.attempt_number}: "
+            f"{retry_state.outcome.exception()}"
+        ),
+    )
+    def _call_api(self, model: str, prompt: str, max_tokens: int = 1000) -> str:
+        """Call Claude API with retry."""
+        message = self.client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+
+    def classify_article(self, article: Dict) -> Optional[Dict]:
+        """
+        Classify if article is relevant for the channel.
+        Uses Haiku for cost efficiency.
+
+        Returns:
+            Dict with {relevant: bool, confidence: int, category: str, format: str,
+                       reason: str, needs_review: bool, url_check_needed: bool}
+            or None if error
+        """
+        title = article.get("title", "")
+        description = article.get("summary", "")[:500]
+
+        prompt = f"""Ты — классификатор контента для Telegram-канала "AI для мамы".
+
+ЦЕЛЕВАЯ АУДИТОРИЯ:
+- Русскоязычные женщины 25-45 лет
+- НЕ технари, обычные пользователи
+- Хотят упростить быт, работу, семейные дела через AI
+
+ВКЛЮЧАТЬ (relevant: true):
+- AI для написания текстов, писем, резюме
+- Редактирование фото, создание изображений
+- Планирование, to-do листы, календари
+- Изучение языков
+- Рецепты, кулинария, меню
+- Личные финансы, бюджет
+- Здоровье, фитнес, медитация
+- Образование детей
+- Путешествия, бронирование
+- AI-ассистенты (ChatGPT, Claude, Gemini)
+- Бесплатные или недорогие инструменты (<$50/мес)
+
+ИСКЛЮЧАТЬ (relevant: false):
+- Инструменты для разработчиков (API, SDK, CLI, framework, library)
+- Enterprise/B2B решения (CRM, ERP, "for teams", "enterprise")
+- Research-модели без UI (weights, checkpoint, .gguf)
+- Инструменты дороже $50/месяц
+- Требующие технических навыков
+- Криптовалюта, NFT, blockchain
+- Новости без конкретного инструмента
+- Научные исследования без практической пользы
+- Новости про инвестиции в AI-компании
+
+EDGE-CASES — как обрабатывать:
+- "AI для бизнеса" → ИСКЛЮЧИТЬ (B2B)
+- "ChatGPT обновился" → ВКЛЮЧИТЬ только если есть consumer feature
+- "Новая модель от OpenAI" → ИСКЛЮЧИТЬ если только API, ВКЛЮЧИТЬ если есть UI
+- "10 AI tools for X" — listicle → relevant: true, confidence: 70, needs_review: true
+- Заголовок на другом языке (не русский/английский) → relevant: false, reason: "non-target-language"
+- Пустое описание → снизь confidence на 20 пунктов
+- Подозрительный URL → добавь url_check_needed: true
+
+FALLBACK при неопределённости:
+- Если не уверен → confidence < 70
+- Если контент на грани → relevant: true, confidence: 55-65, needs_review: true
+- Если не можешь определить категорию → category: "uncategorized"
+
+СТАТЬЯ:
+Заголовок: {title}
+Источник: {article.get('source', '')}
+Описание: {description}
+Ссылка: {article.get('link', '')}
+
+Определи:
+1. Релевантна ли статья для канала?
+2. Уверенность (0-100)
+3. Категория (tool/tip/prompt/lifestyle/education/uncategorized)
+4. Лучший формат поста (ai_tool/quick_tip/prompt_day)
+5. Причина решения (кратко на русском)
+
+Ответь ТОЛЬКО валидным JSON без markdown:
+{{"relevant": true/false, "confidence": 0-100, "category": "...", "format": "...", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
+
+        try:
+            response = self._call_api(self.haiku_model, prompt, max_tokens=250)
+            result = parse_classifier_response(response)
+
+            # Log classification result
+            if result.get("needs_review"):
+                logger.info(
+                    f"Needs review: {title[:50]}... "
+                    f"(confidence: {result.get('confidence')}, reason: {result.get('reason')})"
+                )
+
+            return result
+        except Exception as e:
+            logger.error(f"Error classifying article: {e}")
+            return None
+
+    def generate_post(self, article: Dict, post_format: PostFormat) -> Optional[GeneratedPost]:
+        """
+        Generate a post from article in specified format.
+        Uses Sonnet for quality.
+        """
+        format_templates = {
+            PostFormat.AI_TOOL: self._get_ai_tool_prompt(article),
+            PostFormat.QUICK_TIP: self._get_quick_tip_prompt(article),
+            PostFormat.PROMPT_DAY: self._get_prompt_day_prompt(article),
+        }
+
+        prompt = format_templates.get(post_format)
+        if not prompt:
+            logger.error(f"Unknown format: {post_format}")
+            return None
+
+        try:
+            response = self._call_api(self.sonnet_model, prompt, max_tokens=800)
+
+            # Parse response (expecting JSON with text and image_prompt)
+            try:
+                data = json.loads(response.strip())
+                text = data.get("text", response)
+                image_prompt = data.get("image_prompt")
+            except json.JSONDecodeError:
+                text = response
+                image_prompt = None
+
+            return GeneratedPost(
+                text=text,
+                format=post_format,
+                article_url=article.get("link", ""),
+                article_title=article.get("title", ""),
+                image_prompt=image_prompt,
+            )
+        except Exception as e:
+            logger.error(f"Error generating post: {e}")
+            return None
+
+    def _get_ai_tool_prompt(self, article: Dict) -> str:
+        """Prompt for AI-находка дня format."""
+        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
+
+ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари. Хотят упростить быт через AI.
+
+СТИЛЬ:
+- Дружелюбный, как совет от подруги
+- БЕЗ технического жаргона
+- Эмодзи: 3-5 штук, уместно
+- Обращение на "ты"
+- Короткие предложения
+- Максимум 500 символов
+
+АНТИ-ПАТТЕРНЫ (никогда не используй):
+- "Нейросеть" → заменяй на "умный помощник" или "AI-сервис"
+- "Революционный", "уникальный", "лучший" → убирай маркетинговый булшит
+- "Искусственный интеллект" в каждом предложении → 1 раз максимум
+- Начало с "Представляем..." или "Встречайте..." → начинай с пользы
+- Пассивный залог → активные глаголы
+- "Данный", "является", "осуществляет" → простые слова
+
+FALLBACK если данных мало:
+- Нет цены → "Цена: уточняй на сайте"
+- Нет описания → сгенерируй на основе названия, добавь "needs_verification": true
+- Только название → создай минимальный пост, 3 предложения максимум
+
+СТАТЬЯ ДЛЯ ОБРАБОТКИ:
+Заголовок: {article.get('title', '')}
+Описание: {article.get('summary', '')[:500]}
+Ссылка: {article.get('link', '')}
+
+ФОРМАТ ПОСТА "AI-находка дня":
+```
+🤖 AI-находка дня: [Название на русском]
+
+[Что это — 1 предложение, простым языком]
+[Какую проблему решает — конкретная бытовая ситуация]
+[Главная фишка — почему это круто]
+
+💰 [Цена: бесплатно / есть бесплатный план / от $X/мес]
+
+✅ Попробовать: [ссылка]
+
+🔥 — уже пробовала
+💾 — сохраню на будущее
+```
+
+Ответь JSON (без markdown):
+{{"text": "готовый пост", "image_prompt": "prompt for DALL-E in English, flat design, pastel colors, no text, 50 words"}}"""
+
+    def _get_quick_tip_prompt(self, article: Dict) -> str:
+        """Prompt for Быстрый совет format."""
+        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
+
+ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
+
+СТИЛЬ:
+- Дружелюбный, как совет от подруги
+- Эмодзи: 2-3 штуки
+- Обращение на "ты"
+- Максимум 300 символов
+
+АНТИ-ПАТТЕРНЫ (никогда не используй):
+- "Нейросеть" → "умный помощник"
+- "Революционный", "уникальный" → убирай
+- Начало с "А вы знали..." → начинай с действия
+- "Данный", "является" → простые слова
+
+СТАТЬЯ:
+Заголовок: {article.get('title', '')}
+Описание: {article.get('summary', '')[:500]}
+
+ФОРМАТ ПОСТА "Быстрый совет":
+```
+⚡ Быстрый совет
+
+[Микро-лайфхак 2-3 предложения — что сделать прямо сейчас]
+
+[Эмодзи + результат: что получишь]
+```
+
+Ответь JSON (без markdown):
+{{"text": "готовый пост", "image_prompt": "prompt for DALL-E in English, flat design, pastel colors, no text, 50 words"}}"""
+
+    def _get_prompt_day_prompt(self, article: Dict) -> str:
+        """Prompt for Промт дня format."""
+        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
+
+ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
+
+СТИЛЬ:
+- Дружелюбный
+- Готовый к копированию промт
+- Максимум 500 символов
+
+АНТИ-ПАТТЕРНЫ (никогда не используй):
+- "Нейросеть" → "ChatGPT" или "AI"
+- Сложные термины в промпте → простые слова
+- Длинные промпты → max 2-3 предложения
+- "Пожалуйста, сгенерируй" → просто "Напиши" или "Составь"
+
+СТАТЬЯ:
+Заголовок: {article.get('title', '')}
+Описание: {article.get('summary', '')[:500]}
+
+ФОРМАТ ПОСТА "Промт дня":
+```
+🎯 Промт дня: [Тема]
+
+Ситуация: [когда пригодится — бытовая ситуация]
+
+Промт для ChatGPT:
+"[готовый промт в кавычках, на русском]"
+
+💡 Что получишь: [результат]
+
+Копируй и пользуйся! 📋
+```
+
+Ответь JSON (без markdown):
+{{"text": "готовый пост", "image_prompt": "prompt for DALL-E in English, flat design, pastel colors, no text, 50 words"}}"""
+
+    def generate_image_prompt(self, post: GeneratedPost) -> str:
+        """
+        Generate DALL-E prompt for post image.
+        Uses Haiku for cost efficiency.
+        """
+        if post.image_prompt:
+            return post.image_prompt
+
+        prompt = f"""Create a DALL-E 3 image prompt for this Telegram post:
+
+POST:
+{post.text[:300]}
+
+STYLE REQUIREMENTS:
+- Flat design with soft gradients
+- Pastel colors: light blue, pink, mint, lavender
+- Minimalist icons
+- Isometric perspective
+- NO text on image
+- NO people faces
+- Cozy, friendly feeling
+- Modern, clean look
+
+Format: 1024x1024, English, 50-80 words.
+
+Respond with ONLY the prompt, no explanations."""
+
+        try:
+            return self._call_api(self.haiku_model, prompt, max_tokens=150)
+        except Exception as e:
+            logger.error(f"Error generating image prompt: {e}")
+            return "Flat design illustration, pastel colors, minimalist icons, cozy modern aesthetic, soft gradients, no text"
+
+    def filter_and_rank_articles(
+        self, articles: List[Dict], max_posts: int = 5
+    ) -> List[tuple]:
+        """
+        Filter relevant articles and rank by confidence.
+
+        Returns:
+            List of (article, classification) tuples, sorted by confidence
+        """
+        classified = []
+
+        for article in articles:
+            result = self.classify_article(article)
+            if result and result.get("relevant") and result.get("confidence", 0) >= 60:
+                classified.append((article, result))
+                logger.info(
+                    f"Relevant: {article.get('title', '')[:50]}... "
+                    f"(confidence: {result.get('confidence')})"
+                )
+
+        # Sort by confidence, take top N
+        classified.sort(key=lambda x: x[1].get("confidence", 0), reverse=True)
+        return classified[:max_posts]
+
+    def generate_daily_posts(
+        self, articles: List[Dict], count: int = 5
+    ) -> List[GeneratedPost]:
+        """
+        Generate posts for the day from articles.
+
+        Args:
+            articles: List of news articles
+            count: Number of posts to generate
+
+        Returns:
+            List of GeneratedPost objects
+        """
+        logger.info(f"Generating {count} posts from {len(articles)} articles")
+
+        # Filter and rank articles
+        ranked = self.filter_and_rank_articles(articles, max_posts=count)
+
+        if not ranked:
+            logger.warning("No relevant articles found")
+            return []
+
+        posts = []
+        for article, classification in ranked:
+            format_str = classification.get("format", "ai_tool")
+            try:
+                post_format = PostFormat(format_str)
+            except ValueError:
+                post_format = PostFormat.AI_TOOL
+
+            post = self.generate_post(article, post_format)
+            if post:
+                # Generate image prompt if not present
+                if not post.image_prompt:
+                    post.image_prompt = self.generate_image_prompt(post)
+                posts.append(post)
+                logger.info(f"Generated post: {post.format.value}")
+
+        return posts
+
+
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    generator = PostGenerator()
+
+    # Test with dummy article
+    test_article = {
+        "title": "Canva launches AI photo editor for Instagram",
+        "source": "TechCrunch",
+        "summary": "Canva announced a new AI-powered photo editor that can automatically enhance photos, remove backgrounds, and suggest Instagram-ready filters. The tool is free for basic use.",
+        "link": "https://example.com/canva-ai",
+    }
+
+    print("Testing classification...")
+    result = generator.classify_article(test_article)
+    print(f"Classification: {result}")
+
+    if result and result.get("relevant"):
+        print("\nGenerating post...")
+        post = generator.generate_post(test_article, PostFormat.AI_TOOL)
+        if post:
+            print(f"\n{post.text}")
+            print(f"\nImage prompt: {post.image_prompt}")

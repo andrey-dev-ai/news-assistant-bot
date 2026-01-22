@@ -1,8 +1,25 @@
 """AI processor using Claude API for news summarization and translation."""
 
 import os
-from anthropic import Anthropic
-from typing import List, Dict
+from datetime import datetime
+from typing import Dict, List
+
+from anthropic import (
+    Anthropic,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+)
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from logger import get_logger
+
+logger = get_logger("news_bot.ai")
 
 
 class AIProcessor:
@@ -10,12 +27,42 @@ class AIProcessor:
 
     def __init__(self, api_key: str = None):
         """Initialize Claude AI client."""
-        self.api_key = api_key or os.getenv('ANTHROPIC_API_KEY')
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment")
 
         self.client = Anthropic(api_key=self.api_key)
         self.model = "claude-sonnet-4-20250514"
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_type(
+            (RateLimitError, APIConnectionError, APITimeoutError)
+        ),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Claude API retry {retry_state.attempt_number}: "
+            f"{retry_state.outcome.exception()}"
+        ),
+    )
+    def _call_claude_api(self, prompt: str, max_tokens: int = 4000) -> str:
+        """
+        Call Claude API with retry logic.
+
+        Args:
+            prompt: The prompt to send
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            The response text from Claude
+        """
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
 
     def create_digest(self, articles: List[Dict], max_articles: int = 20) -> str:
         """
@@ -81,28 +128,18 @@ class AIProcessor:
 - Давай ПОЛНУЮ картину дня в AI-индустрии"""
 
         try:
-            # Call Claude API
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=4000,
-                temperature=0.7,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            # Extract response
-            digest = message.content[0].text
+            logger.info(f"Creating digest from {len(articles[:max_articles])} articles")
+            digest = self._call_claude_api(prompt)
 
             # Add header
-            from datetime import datetime
             date_str = datetime.now().strftime("%d.%m.%Y")
             header = f"🤖 **AI News Digest - {date_str}**\n\n"
 
+            logger.info("Digest created successfully")
             return header + digest
 
         except Exception as e:
-            print(f"Error calling Claude API: {e}")
+            logger.error(f"Error calling Claude API: {e}")
             return f"Ошибка при создании дайджеста: {e}"
 
     def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
@@ -111,9 +148,9 @@ class AIProcessor:
         for i, article in enumerate(articles, 1):
             text = f"{i}. **{article['title']}**\n"
             text += f"   Источник: {article['source']}\n"
-            if article.get('summary'):
+            if article.get("summary"):
                 # Clean HTML from summary
-                summary = article['summary'].replace('<p>', '').replace('</p>', '')
+                summary = article["summary"].replace("<p>", "").replace("</p>", "")
                 text += f"   Описание: {summary[:300]}...\n"
             text += f"   Ссылка: {article['link']}\n"
             formatted.append(text)
@@ -124,6 +161,7 @@ class AIProcessor:
 if __name__ == "__main__":
     # Test the processor (requires API key in environment)
     from dotenv import load_dotenv
+
     load_dotenv()
 
     processor = AIProcessor()
@@ -131,17 +169,17 @@ if __name__ == "__main__":
     # Test with dummy articles
     test_articles = [
         {
-            'title': 'OpenAI releases GPT-5',
-            'source': 'TechCrunch',
-            'summary': 'OpenAI announced the release of GPT-5 with major improvements.',
-            'link': 'https://example.com/gpt5'
+            "title": "OpenAI releases GPT-5",
+            "source": "TechCrunch",
+            "summary": "OpenAI announced the release of GPT-5 with major improvements.",
+            "link": "https://example.com/gpt5",
         },
         {
-            'title': 'Google invests $100M in AI startup',
-            'source': 'VentureBeat',
-            'summary': 'Google announces major investment in promising AI company.',
-            'link': 'https://example.com/investment'
-        }
+            "title": "Google invests $100M in AI startup",
+            "source": "VentureBeat",
+            "summary": "Google announces major investment in promising AI company.",
+            "link": "https://example.com/investment",
+        },
     ]
 
     print("Testing AI Processor...\n")
