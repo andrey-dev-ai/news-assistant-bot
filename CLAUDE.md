@@ -42,7 +42,7 @@ ssh root@141.227.152.143 "journalctl -u ai-news-bot -f"
 ```
 
 ### Тестирование
-После деплоя — `/generate` в Telegram боте (@ai_dlya_mamy_bot)
+После деплоя — `/generate` в Telegram боте (@ai_dlya_doma_bot)
 
 ---
 

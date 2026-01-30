@@ -1,4 +1,4 @@
-# Контекст для нового чата: AI News Bot → @ai_dlya_mamy
+# Контекст для нового чата: AI News Bot → @ai_dlya_doma
 
 > **Обновлено:** 2026-01-22
 > **Версия:** 2.0.0 (Phase 2 в разработке)
@@ -11,7 +11,7 @@
 |-----------|--------|
 | Phase 1 (Production-Ready) | ✅ Завершено |
 | VPS Деплой | ✅ Работает на 141.227.152.143 |
-| Канал @ai_dlya_mamy | ✅ Создан |
+| Канал @ai_dlya_doma | ✅ Создан |
 | Phase 2 (5 постов/день) | 🔄 В процессе (70%) |
 | DALL-E картинки | ⏳ TODO |
 
@@ -84,7 +84,7 @@ RSS → Claude Haiku (фильтр) → Claude Sonnet (генерация) →
 ANTHROPIC_API_KEY=sk-ant-...
 TELEGRAM_BOT_TOKEN=8423032550:AAH...
 TELEGRAM_USER_ID=5260209994
-TELEGRAM_CHANNEL_ID=@ai_dlya_mamy
+TELEGRAM_CHANNEL_ID=@ai_dlya_doma
 DIGEST_TIMES=08:00
 LOG_LEVEL=INFO
 LOG_DIR=logs
@@ -108,7 +108,7 @@ SSH: ssh root@141.227.152.143
 
 ### Вариант A: Продолжить Phase 2
 ```
-Продолжаем Phase 2 для @ai_dlya_mamy.
+Продолжаем Phase 2 для @ai_dlya_doma.
 
 Уже сделано:
 - post_generator.py ✅

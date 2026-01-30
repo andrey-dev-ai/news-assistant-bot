@@ -96,7 +96,7 @@
 ### Деплой
 - Бот задеплоен на VPS: 141.227.152.143
 - Systemd сервис: news-bot.service
-- Канал: @ai_dlya_mamy
+- Канал: @ai_dlya_doma
 
 ---
 

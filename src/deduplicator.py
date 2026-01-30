@@ -1,4 +1,4 @@
-"""Content deduplication with exact and fuzzy matching for @ai_dlya_mamy channel."""
+"""Content deduplication with exact and fuzzy matching for @ai_dlya_doma channel."""
 
 import hashlib
 import re

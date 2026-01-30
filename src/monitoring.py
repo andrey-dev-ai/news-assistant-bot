@@ -1,4 +1,4 @@
-"""Monitoring and metrics for @ai_dlya_mamy bot."""
+"""Monitoring and metrics for @ai_dlya_doma bot."""
 
 from dataclasses import dataclass
 from datetime import datetime
