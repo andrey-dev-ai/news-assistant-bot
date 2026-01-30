@@ -151,6 +151,17 @@ class PostQueue:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_post_by_id(self, post_id: int) -> Optional[Dict]:
+        """Get a single post by ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM post_queue WHERE id = ?",
+                (post_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
     def mark_published(self, post_id: int) -> bool:
         """Mark post as published."""
         with sqlite3.connect(self.db_path) as conn:

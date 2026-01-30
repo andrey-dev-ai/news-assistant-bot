@@ -3,48 +3,105 @@
     "name": "One Useful Thing",
     "url": "https://www.oneusefulthing.org/feed",
     "enabled": true,
+    "priority": 1,
     "comment": "Практичные советы по AI от Ethan Mollick"
   },
   {
     "name": "The Rundown AI",
     "url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml",
     "enabled": true,
+    "priority": 1,
     "comment": "Ежедневные новости AI простым языком"
   },
   {
     "name": "The Verge AI",
     "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
     "enabled": true,
+    "priority": 1,
     "comment": "AI новости для широкой аудитории"
   },
   {
     "name": "ZDNET AI",
     "url": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
     "enabled": true,
+    "priority": 2,
     "comment": "Практичные статьи про AI"
   },
   {
     "name": "Futurism AI",
     "url": "https://futurism.com/categories/ai-artificial-intelligence/feed",
     "enabled": true,
+    "priority": 2,
     "comment": "AI новости доступным языком"
   },
   {
     "name": "Synthedia",
     "url": "https://synthedia.substack.com/feed",
     "enabled": true,
+    "priority": 2,
     "comment": "ChatGPT, DALL-E, генеративный AI"
   },
   {
     "name": "Last Week in AI",
     "url": "https://lastweekin.ai/feed",
     "enabled": true,
+    "priority": 2,
     "comment": "Еженедельные сводки AI новостей"
   },
   {
     "name": "THE DECODER",
     "url": "https://the-decoder.com/feed/",
     "enabled": true,
+    "priority": 1,
     "comment": "AI news, business, and research"
+  },
+  {
+    "name": "Wired AI",
+    "url": "https://www.wired.com/feed/tag/ai/latest/rss",
+    "enabled": true,
+    "priority": 2,
+    "comment": "AI и технологии от Wired"
+  },
+  {
+    "name": "The Guardian AI",
+    "url": "https://www.theguardian.com/technology/artificialintelligenceai/rss",
+    "enabled": true,
+    "priority": 3,
+    "comment": "AI новости от The Guardian"
+  },
+  {
+    "name": "Ars Technica AI",
+    "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
+    "enabled": true,
+    "priority": 3,
+    "comment": "Технические статьи про AI"
+  },
+  {
+    "name": "Ben's Bites",
+    "url": "https://rss.beehiiv.com/feeds/6RP9sQV5xC.xml",
+    "enabled": true,
+    "priority": 2,
+    "comment": "Популярная AI-рассылка"
+  },
+  {
+    "name": "Habr ML",
+    "url": "https://habr.com/ru/rss/hub/machine_learning/all/?fl=ru",
+    "enabled": true,
+    "priority": 2,
+    "comment": "Русскоязычные статьи про ML/AI"
+  },
+  {
+    "name": "VC.ru AI",
+    "url": "https://vc.ru/rss/ai",
+    "enabled": true,
+    "priority": 3,
+    "comment": "Русскоязычные новости AI"
+  },
+  {
+    "name": "Product Hunt",
+    "url": "https://www.producthunt.com/feed",
+    "enabled": true,
+    "priority": 3,
+    "comment": "Новые AI-продукты и стартапы"
   }
 ]

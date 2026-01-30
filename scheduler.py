@@ -68,16 +68,20 @@ def get_shutdown_handler() -> GracefulShutdown:
 
 
 def generate_daily_posts():
-    """Generate posts for the day and add to queue."""
+    """Generate posts for the day and add to queue (with moderation support)."""
+    from config import get_settings
     from database import Database
     from deduplicator import get_deduplicator
+    from moderation import get_moderation_queue
     from post_generator import PostGenerator
     from post_queue import PostQueue
     from rss_parser import RSSParser
 
     logger = get_logger("news_bot.scheduler")
+    settings = get_settings()
+
     logger.info("=" * 50)
-    logger.info("Generating daily posts")
+    logger.info(f"Generating daily posts (moderation: {settings.use_moderation})")
     logger.info("=" * 50)
 
     try:
@@ -148,33 +152,62 @@ def generate_daily_posts():
             logger.warning("No posts generated")
             return
 
-        # Add to queue with schedule
+        # Add to queue
         queue = PostQueue()
-        times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+        mq = get_moderation_queue()
 
         post_dicts = [
             {
                 "text": post.text,
                 "article_url": post.article_url,
                 "article_title": post.article_title,
-                "image_url": post.image_url,  # OG/RSS image URL
-                "image_prompt": post.image_prompt,  # Fallback for AI generation
+                "image_url": post.image_url,
+                "image_prompt": post.image_prompt,
                 "format": post.format.value,
             }
             for post in posts
         ]
 
-        post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
-        logger.info(f"Scheduled {len(post_ids)} posts for today")
+        if settings.use_moderation:
+            # Phase 3: Send posts for moderation instead of scheduling
+            post_ids = []
+            for post_dict in post_dicts:
+                post_id = queue.add_post(
+                    post_text=post_dict["text"],
+                    article_url=post_dict["article_url"],
+                    article_title=post_dict["article_title"],
+                    image_url=post_dict.get("image_url"),
+                    image_prompt=post_dict.get("image_prompt"),
+                    format_type=post_dict["format"],
+                )
+                mq.send_for_approval(post_id)
+                post_ids.append(post_id)
 
-        # Mark articles as sent with classification data
+            logger.info(f"Sent {len(post_ids)} posts for moderation")
+
+            # Notify owner about pending posts
+            try:
+                sender = TelegramSender()
+                sender.send_message(
+                    f"📋 Сгенерировано {len(post_ids)} постов!\n\n"
+                    f"Откройте бота и нажмите 📋 Очередь для модерации."
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send notification: {e}")
+        else:
+            # Legacy mode: schedule posts for auto-publishing
+            times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+            post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
+            logger.info(f"Scheduled {len(post_ids)} posts for today")
+
+        # Mark articles as sent
         for post in posts:
             db.mark_article_sent(
                 link=post.article_url,
                 title=post.article_title,
-                relevance_score=0,  # Will be updated when classification is passed
+                relevance_score=0,
                 category=post.format.value,
-                status="published",
+                status="pending" if settings.use_moderation else "published",
             )
 
         # Log deduplicator stats
@@ -185,20 +218,37 @@ def generate_daily_posts():
 
 
 def publish_scheduled_post():
-    """Publish the next scheduled post from queue with image."""
+    """Publish the next scheduled/approved post from queue with image."""
+    from config import get_settings
+    from moderation import get_moderation_queue
     from post_queue import PostQueue
 
     logger = get_logger("news_bot.scheduler")
+    settings = get_settings()
 
     try:
         queue = PostQueue()
-        post = queue.get_next_pending()
+        mq = get_moderation_queue()
+
+        post = None
+
+        if settings.use_moderation:
+            # Phase 3: Only publish approved posts
+            approved_posts = mq.get_approved_posts()
+            scheduled_posts = mq.get_scheduled_posts()
+
+            all_ready = approved_posts + scheduled_posts
+            if all_ready:
+                post = all_ready[0]
+        else:
+            # Legacy: publish scheduled posts
+            post = queue.get_next_pending()
 
         if not post:
-            logger.debug("No pending posts to publish")
+            logger.debug("No posts ready to publish")
             return
 
-        logger.info(f"Publishing post {post['id']}: {post['format']}")
+        logger.info(f"Publishing post {post['id']}: {post.get('format', 'unknown')}")
 
         # Get or prepare image
         image_path = None
@@ -357,7 +407,10 @@ def main():
     shutdown.register_handlers()
 
     logger.info("=" * 50)
-    logger.info("AI News Bot Started (Phase 2)")
+    logger.info("AI News Bot Started (Phase 3)")
+    logger.info(f"  Moderation: {'ON' if settings.use_moderation else 'OFF'}")
+    logger.info(f"  Rubrics: {'ON' if settings.use_rubrics else 'OFF'}")
+    logger.info(f"  New Schedule: {'ON' if settings.use_new_schedule else 'OFF'}")
     logger.info("=" * 50)
 
     try:

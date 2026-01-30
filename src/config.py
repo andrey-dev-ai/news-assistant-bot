@@ -98,6 +98,31 @@ class Settings(BaseSettings):
         description="Path to SQLite database"
     )
 
+    # Phase 3: Feature Flags
+    use_moderation: bool = Field(
+        default=True,
+        alias="USE_MODERATION",
+        description="Enable manual approval for posts before publishing"
+    )
+
+    use_rubrics: bool = Field(
+        default=False,
+        alias="USE_RUBRICS",
+        description="Enable rubric-based post generation"
+    )
+
+    use_new_schedule: bool = Field(
+        default=False,
+        alias="USE_NEW_SCHEDULE",
+        description="Enable weekly schedule (11 posts/week instead of 5/day)"
+    )
+
+    # Content plan config
+    content_plan_path: Path = Field(
+        default=Path("config/content_plan.yaml"),
+        description="Path to content plan configuration"
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

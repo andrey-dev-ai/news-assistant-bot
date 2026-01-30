@@ -1,0 +1,191 @@
+# ============================================
+# AI ДЛЯ ДОМА — Недельное расписание публикаций
+# Phase 3: 11 постов в неделю
+# ============================================
+
+# Настройки
+settings:
+  timezone: "Europe/Kiev"  # UTC+2/+3
+  posts_per_week: 11
+  moderation_required: true
+  auto_reject_after_hours: 48  # Автоотклонение постов старше 48ч
+
+# Рубрики
+rubrics:
+  tool_review:
+    name: "AI-инструмент недели"
+    emoji: "🛠"
+    hashtag: "#инструмент_недели"
+    description: "Обзор одного AI-инструмента с практическими примерами"
+    auto_generate: true
+
+  news:
+    name: "Новости нейросетей"
+    emoji: "📰"
+    hashtag: "#новости"
+    description: "Актуальные новости AI-индустрии"
+    auto_generate: true
+
+  prompt_home:
+    name: "Промпт для дома"
+    emoji: "💡"
+    hashtag: "#промпт_дня"
+    description: "Готовый промпт для повседневных задач"
+    auto_generate: true
+
+  lifehack:
+    name: "Лайфхак с AI"
+    emoji: "✨"
+    hashtag: "#лайфхак"
+    description: "Конкретный совет с пошаговой инструкцией"
+    auto_generate: true
+
+  free_service:
+    name: "Бесплатный сервис"
+    emoji: "🆓"
+    hashtag: "#бесплатно"
+    description: "Бесплатные AI-инструменты"
+    auto_generate: true
+
+  digest:
+    name: "Дайджест недели"
+    emoji: "📋"
+    hashtag: "#дайджест"
+    description: "Итоги недели, лучшие материалы"
+    auto_generate: true
+
+  collection:
+    name: "Подборка недели"
+    emoji: "📚"
+    hashtag: "#подборка"
+    description: "Тематическая подборка инструментов/ресурсов"
+    auto_generate: true
+
+  poll:
+    name: "Опрос"
+    emoji: "📊"
+    hashtag: null
+    description: "Голосование для аудитории"
+    auto_generate: false  # Ручное создание
+
+  before_after:
+    name: "До/После"
+    emoji: "🔄"
+    hashtag: null
+    description: "Сравнение результатов генерации"
+    auto_generate: false  # Ручное создание
+
+  fun:
+    name: "Мем/Fun"
+    emoji: "😄"
+    hashtag: null
+    description: "Развлекательный контент об AI"
+    auto_generate: false  # Ручное создание
+
+# Недельное расписание
+# Формат: день -> список слотов (time, rubric, manual)
+schedule:
+  monday:
+    - time: "10:00"
+      rubric: tool_review
+    - time: "19:00"
+      rubric: poll
+      manual: true  # Напоминание владельцу, не автогенерация
+
+  tuesday:
+    - time: "12:00"
+      rubric: news
+    - time: "20:00"
+      rubric: prompt_home
+
+  wednesday:
+    - time: "11:00"
+      rubric: lifehack
+    - time: "21:00"
+      rubric: before_after
+      manual: true
+
+  thursday:
+    - time: "10:00"
+      rubric: news  # Обновление сервиса
+    - time: "19:00"
+      rubric: free_service
+
+  friday:
+    - time: "12:00"
+      rubric: collection
+
+  saturday:
+    - time: "15:00"
+      rubric: fun
+      manual: true
+
+  sunday:
+    - time: "21:00"
+      rubric: digest
+
+# Напоминания для ручного контента
+manual_reminders:
+  poll:
+    remind_before_hours: 3  # За 3 часа до слота
+    message: |
+      📊 Время опроса! Идеи на эту неделю:
+
+      1. "Какой AI-сервис используете чаще всего?"
+         - ChatGPT / Claude / Gemini / Другой
+
+      2. "Для чего используете AI дома?"
+         - Работа / Учёба / Творчество / Быт
+
+      3. По теме недельного дайджеста
+
+      👉 Создайте опрос в канале: 📎 → Опрос
+
+  before_after:
+    remind_before_hours: 2
+    message: |
+      🔄 Время для До/После!
+
+      Идеи:
+      - Сравнение генерации картинок разными моделями
+      - Результат обработки фото AI
+      - Текст до/после редактирования через ChatGPT
+
+  fun:
+    remind_before_hours: 4
+    message: |
+      😄 Суббота = день мема!
+
+      Источники идей:
+      - r/ProgrammerHumor (AI-тематика)
+      - Twitter/X: @aihumor, @techhumor
+      - imgflip.com/meme-generator
+      - Генерация через DALL-E: "meme about AI doing [task]"
+
+# Генерация контента
+generation:
+  # Когда генерировать посты на неделю
+  weekly_generation:
+    day: sunday
+    time: "07:00"
+    posts_ahead: 7  # На сколько дней вперёд
+
+  # Приоритеты источников по рубрикам
+  source_priorities:
+    tool_review:
+      - Product Hunt
+      - The Rundown AI
+      - Ben's Bites
+    news:
+      - The Verge AI
+      - Wired AI
+      - THE DECODER
+    free_service:
+      - The Rundown AI
+      - Product Hunt
+    lifehack:
+      - One Useful Thing
+      - ZDNET AI
+    collection:
+      - One Useful Thing
+      - The Rundown AI

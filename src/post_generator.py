@@ -467,6 +467,104 @@ FALLBACK:
 {{"text": "готовый пост с HTML-разметкой, 1000-1500 символов", "image_prompt": "DALL-E prompt in English, tech illustration style, modern, clean, 40 words max"}}"""
 
 
+    def generate_post_for_rubric(
+        self, article: Dict, rubric_name: str
+    ) -> Optional[GeneratedPost]:
+        """
+        Generate a post for a specific rubric using its template.
+
+        Args:
+            article: Article data
+            rubric_name: Name of the rubric (e.g., 'tool_review', 'news')
+
+        Returns:
+            GeneratedPost or None
+        """
+        try:
+            from rubrics import Rubric, RUBRIC_PROMPTS
+
+            # Get rubric enum
+            try:
+                rubric = Rubric(rubric_name)
+            except ValueError:
+                logger.warning(f"Unknown rubric: {rubric_name}, using default")
+                return self.generate_post(article)
+
+            # Get rubric-specific prompt template
+            rubric_template = RUBRIC_PROMPTS.get(rubric)
+            if not rubric_template:
+                logger.warning(f"No template for rubric: {rubric_name}, using default")
+                return self.generate_post(article)
+
+            # Build full prompt
+            article_link = article.get('link', '')
+            source_name = article.get('source', 'источник')
+
+            prompt = f"""Ты — копирайтер Telegram-канала "AI для дома" (@ai_dlya_doma).
+
+АУДИТОРИЯ: Все, кто интересуется AI — от новичков до продвинутых.
+
+РУБРИКА И ФОРМАТ:
+{rubric_template}
+
+СТАТЬЯ ДЛЯ ОБРАБОТКИ:
+Заголовок: {article.get('title', '')}
+Источник: {source_name}
+Описание: {article.get('summary', '')[:800]}
+Ссылка: {article_link}
+
+ПРАВИЛА:
+- Используй HTML-разметку Telegram: <b>, <i>, <a href="">
+- Ссылки встраивай в текст
+- Длина: 800-1200 символов
+- Замени [URL] на реальную ссылку: {article_link}
+
+Ответ ТОЛЬКО JSON:
+{{"text": "готовый пост", "image_prompt": "DALL-E prompt, 40 words"}}"""
+
+            response = self._call_api(self.sonnet_model, prompt, max_tokens=1500)
+
+            # Parse response
+            try:
+                cleaned = response.strip()
+                cleaned = re.sub(r"^```json\s*", "", cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r"^```\s*", "", cleaned)
+                cleaned = re.sub(r"\s*```$", "", cleaned)
+
+                data = json.loads(cleaned)
+                text = data.get("text", response)
+                image_prompt = data.get("image_prompt")
+            except (json.JSONDecodeError, TypeError, ValueError):
+                text = response
+                image_prompt = None
+
+            text = validate_telegram_html(text)
+
+            # Map rubric to PostFormat
+            format_map = {
+                "tool_review": PostFormat.AI_TOOL,
+                "news": PostFormat.AI_TOOL,
+                "prompt_home": PostFormat.PROMPT_DAY,
+                "lifehack": PostFormat.QUICK_TIP,
+                "free_service": PostFormat.AI_TOOL,
+                "collection": PostFormat.CHECKLIST,
+                "digest": PostFormat.CHECKLIST,
+            }
+            post_format = format_map.get(rubric_name, PostFormat.AI_TOOL)
+
+            return GeneratedPost(
+                text=text,
+                format=post_format,
+                article_url=article.get("link", ""),
+                article_title=article.get("title", ""),
+                image_prompt=image_prompt,
+                image_url=article.get("image_url"),
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating post for rubric {rubric_name}: {e}")
+            return None
+
     def generate_image_prompt(self, post: GeneratedPost) -> str:
         """
         Generate DALL-E prompt for post image.

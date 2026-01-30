@@ -8,12 +8,20 @@ from typing import List, Optional
 import requests
 from requests.exceptions import ConnectionError as ReqConnectionError
 from requests.exceptions import RequestException, Timeout
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    Update,
+)
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 from tenacity import (
     retry,
@@ -304,24 +312,47 @@ class TelegramBotHandler:
         self.digest_callback = digest_callback
         self.app = None
 
+    def _get_main_keyboard(self) -> ReplyKeyboardMarkup:
+        """Get the persistent reply keyboard for the bot."""
+        keyboard = [
+            [KeyboardButton("📋 Очередь"), KeyboardButton("📊 Статистика")],
+            [KeyboardButton("🔄 Обновить"), KeyboardButton("⚙️ Настройки")],
+        ]
+        return ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True,
+            is_persistent=True,
+        )
+
+    def _get_moderation_keyboard(self, post_id: int) -> InlineKeyboardMarkup:
+        """Get inline keyboard for post moderation."""
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Опубликовать", callback_data=f"approve_{post_id}"),
+                InlineKeyboardButton("📅 Отложить", callback_data=f"schedule_{post_id}"),
+            ],
+            [
+                InlineKeyboardButton("✏️ Редактировать", callback_data=f"edit_{post_id}"),
+                InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{post_id}"),
+            ],
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
     async def start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
         """Handle /start command."""
-        keyboard = [
-            [InlineKeyboardButton("📰 Получить дайджест", callback_data="get_digest")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await update.message.reply_text(
-            "👋 Привет! Я AI News Bot.\n\n"
-            "Я собираю новости об искусственном интеллекте и отправляю дайджест.\n\n"
-            "📅 Автоматическая отправка: каждый день в 08:00 UTC\n\n"
-            "Команды:\n"
-            "/digest - получить дайджест сейчас\n"
-            "/post - опубликовать в канал\n"
-            "/help - помощь",
-            reply_markup=reply_markup,
+            "👋 Привет! Я AI News Bot (Phase 3).\n\n"
+            "Теперь каждый пост проходит модерацию перед публикацией.\n\n"
+            "📋 <b>Очередь</b> — посты на модерацию\n"
+            "📊 <b>Статистика</b> — метрики канала\n"
+            "🔄 <b>Обновить</b> — сгенерировать посты\n"
+            "⚙️ <b>Настройки</b> — конфигурация\n\n"
+            "Используйте кнопки ниже или команды:\n"
+            "/help — справка",
+            parse_mode="HTML",
+            reply_markup=self._get_main_keyboard(),
         )
 
     async def help_command(
@@ -329,19 +360,106 @@ class TelegramBotHandler:
     ):
         """Handle /help command."""
         await update.message.reply_text(
-            "🤖 <b>AI News Bot - Помощь</b>\n\n"
-            "<b>Phase 2 команды:</b>\n"
-            "/generate - сгенерировать 5 постов на день\n"
-            "/preview - посмотреть запланированные посты\n"
+            "🤖 <b>AI News Bot - Помощь (Phase 3)</b>\n\n"
+            "<b>Кнопки клавиатуры:</b>\n"
+            "📋 Очередь — посты ожидающие одобрения\n"
+            "📊 Статистика — статистика канала\n"
+            "🔄 Обновить — сгенерировать посты сейчас\n"
+            "⚙️ Настройки — конфигурация бота\n\n"
+            "<b>Команды:</b>\n"
+            "/generate - сгенерировать посты\n"
+            "/preview - посмотреть очередь\n"
             "/publish_now - опубликовать следующий пост\n"
-            "/stats - статистика и мониторинг\n\n"
-            "<b>Legacy команды:</b>\n"
-            "/digest - получить дайджест лично\n"
-            "/post - опубликовать дайджест в канал\n\n"
+            "/stats - статистика\n\n"
             "/start - начать работу\n"
             "/help - эта справка",
             parse_mode="HTML",
+            reply_markup=self._get_main_keyboard(),
         )
+
+    async def handle_keyboard_button(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        """Handle persistent keyboard button presses."""
+        text = update.message.text
+
+        if text == "📋 Очередь":
+            await self._show_moderation_queue(update, context)
+        elif text == "📊 Статистика":
+            await self.stats_command(update, context)
+        elif text == "🔄 Обновить":
+            await self.generate_command(update, context)
+        elif text == "⚙️ Настройки":
+            await self._show_settings(update, context)
+        else:
+            # Unknown button, ignore
+            pass
+
+    async def _show_moderation_queue(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        """Show posts waiting for moderation."""
+        try:
+            from moderation import get_moderation_queue
+
+            mq = get_moderation_queue()
+            posts = mq.get_pending_posts(limit=10)
+
+            if not posts:
+                await update.message.reply_text(
+                    "📭 Нет постов ожидающих одобрения.\n\n"
+                    "Нажмите 🔄 Обновить чтобы сгенерировать новые.",
+                    reply_markup=self._get_main_keyboard(),
+                )
+                return
+
+            await update.message.reply_text(
+                f"📋 <b>Посты на модерацию:</b> {len(posts)}\n",
+                parse_mode="HTML",
+            )
+
+            for post in posts:
+                # Send each post with moderation buttons
+                post_preview = post["post_text"][:500]
+                if len(post["post_text"]) > 500:
+                    post_preview += "..."
+
+                rubric = post.get("rubric") or post.get("format", "unknown")
+
+                await update.message.reply_text(
+                    f"<b>#{post['id']}</b> | {rubric}\n\n"
+                    f"{post_preview}",
+                    parse_mode="HTML",
+                    reply_markup=self._get_moderation_keyboard(post["id"]),
+                    disable_web_page_preview=True,
+                )
+
+        except Exception as e:
+            logger.error(f"Error showing moderation queue: {e}")
+            await update.message.reply_text(f"❌ Ошибка: {e}")
+
+    async def _show_settings(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        """Show bot settings."""
+        try:
+            from config import get_settings
+
+            settings = get_settings()
+
+            await update.message.reply_text(
+                "⚙️ <b>Настройки бота</b>\n\n"
+                f"<b>Модерация:</b> {'✅ Включена' if settings.use_moderation else '❌ Выключена'}\n"
+                f"<b>Рубрики:</b> {'✅ Включены' if settings.use_rubrics else '❌ Выключены'}\n"
+                f"<b>Новое расписание:</b> {'✅ Включено' if settings.use_new_schedule else '❌ Выключено'}\n\n"
+                f"<b>Канал:</b> {self.channel_id or 'Не настроен'}\n"
+                f"<b>RSS источников:</b> 15",
+                parse_mode="HTML",
+                reply_markup=self._get_main_keyboard(),
+            )
+        except Exception as e:
+            logger.error(f"Error showing settings: {e}")
+            await update.message.reply_text(f"❌ Ошибка: {e}")
 
     async def digest_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -358,24 +476,31 @@ class TelegramBotHandler:
     async def generate_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
-        """Handle /generate command - generate 5 posts for today."""
+        """Handle /generate command - generate posts and send for moderation."""
         # Check if user is authorized
         if str(update.effective_user.id) != self.user_id:
             await update.message.reply_text("❌ У вас нет прав для этой команды.")
             return
 
-        await update.message.reply_text("⏳ Генерирую 5 постов на сегодня...")
+        await update.message.reply_text(
+            "⏳ Генерирую посты...",
+            reply_markup=self._get_main_keyboard(),
+        )
 
         try:
+            from config import get_settings
             from database import Database
+            from moderation import get_moderation_queue
             from post_generator import PostGenerator
             from post_queue import PostQueue
             from rss_parser import RSSParser
 
+            settings = get_settings()
             parser = RSSParser()
             db = Database()
             generator = PostGenerator()
             queue = PostQueue()
+            mq = get_moderation_queue()
 
             # Fetch and filter articles
             articles = parser.fetch_recent_news(hours=24)
@@ -402,33 +527,82 @@ class TelegramBotHandler:
                 await update.message.reply_text("❌ Не удалось сгенерировать посты.")
                 return
 
-            # Schedule posts
-            times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+            # Add posts to queue
             post_dicts = [
                 {
                     "text": post.text,
                     "article_url": post.article_url,
                     "article_title": post.article_title,
-                    "image_url": post.image_url,  # OG/RSS image
-                    "image_prompt": post.image_prompt,  # Fallback for generation
+                    "image_url": post.image_url,
+                    "image_prompt": post.image_prompt,
                     "format": post.format.value,
                 }
                 for post in posts
             ]
-            post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
 
-            # Mark articles as sent
-            for post in posts:
-                db.mark_article_sent(post.article_url, post.article_title)
+            # If moderation is enabled, send for approval instead of scheduling
+            if settings.use_moderation:
+                post_ids = []
+                for post_dict in post_dicts:
+                    post_id = queue.add_post(
+                        post_text=post_dict["text"],
+                        article_url=post_dict["article_url"],
+                        article_title=post_dict["article_title"],
+                        image_url=post_dict.get("image_url"),
+                        image_prompt=post_dict.get("image_prompt"),
+                        format_type=post_dict["format"],
+                    )
+                    # Mark as pending approval
+                    mq.send_for_approval(post_id)
+                    post_ids.append(post_id)
 
-            # Show preview
-            stats = queue.get_stats()
-            await update.message.reply_text(
-                f"✅ Сгенерировано {len(posts)} постов!\n\n"
-                f"📅 Расписание: {', '.join(times[:len(posts)])}\n"
-                f"📊 В очереди: {stats.get('pending', 0)} постов\n\n"
-                f"Используйте /preview чтобы посмотреть посты."
-            )
+                # Mark articles as sent
+                for post in posts:
+                    db.mark_article_sent(post.article_url, post.article_title)
+
+                await update.message.reply_text(
+                    f"✅ Сгенерировано {len(posts)} постов!\n\n"
+                    f"📋 Посты отправлены на модерацию.\n"
+                    f"Нажмите <b>📋 Очередь</b> чтобы одобрить.",
+                    parse_mode="HTML",
+                    reply_markup=self._get_main_keyboard(),
+                )
+
+                # Show first post for quick moderation
+                if post_ids:
+                    first_post = queue.get_post_by_id(post_ids[0]) if hasattr(queue, 'get_post_by_id') else None
+                    if first_post is None:
+                        # Fallback: get from moderation queue
+                        first_post = mq.get_post_by_id(post_ids[0])
+
+                    if first_post:
+                        post_preview = first_post["post_text"][:500]
+                        if len(first_post["post_text"]) > 500:
+                            post_preview += "..."
+
+                        await update.message.reply_text(
+                            f"<b>Первый пост #{first_post['id']}</b>\n\n"
+                            f"{post_preview}",
+                            parse_mode="HTML",
+                            reply_markup=self._get_moderation_keyboard(first_post["id"]),
+                            disable_web_page_preview=True,
+                        )
+            else:
+                # Legacy mode: schedule posts for auto-publishing
+                times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+                post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
+
+                for post in posts:
+                    db.mark_article_sent(post.article_url, post.article_title)
+
+                stats = queue.get_stats()
+                await update.message.reply_text(
+                    f"✅ Сгенерировано {len(posts)} постов!\n\n"
+                    f"📅 Расписание: {', '.join(times[:len(posts)])}\n"
+                    f"📊 В очереди: {stats.get('pending', 0)} постов\n\n"
+                    f"Используйте /preview чтобы посмотреть посты.",
+                    reply_markup=self._get_main_keyboard(),
+                )
 
         except Exception as e:
             logger.error(f"Error in /generate command: {e}")
@@ -632,18 +806,184 @@ class TelegramBotHandler:
     async def button_callback(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
-        """Handle button press."""
+        """Handle inline button press."""
         query = update.callback_query
         await query.answer()
 
-        if query.data == "get_digest":
-            await query.message.reply_text("⏳ Собираю новости, подождите...")
+        data = query.data
 
+        # Legacy: get_digest button
+        if data == "get_digest":
+            await query.message.reply_text("⏳ Собираю новости, подождите...")
             try:
                 await asyncio.to_thread(self.digest_callback)
             except Exception as e:
                 logger.error(f"Error in button callback: {e}")
                 await query.message.reply_text(f"❌ Ошибка: {e}")
+            return
+
+        # Moderation buttons
+        if data.startswith("approve_"):
+            await self._handle_approve(query, data)
+        elif data.startswith("schedule_"):
+            await self._handle_schedule(query, data)
+        elif data.startswith("edit_"):
+            await self._handle_edit(query, data)
+        elif data.startswith("reject_"):
+            await self._handle_reject(query, data)
+        elif data.startswith("confirm_reject_"):
+            await self._handle_confirm_reject(query, data)
+        elif data.startswith("schedule_time_"):
+            await self._handle_schedule_time(query, data)
+
+    async def _handle_approve(self, query, data: str):
+        """Approve and immediately publish a post."""
+        try:
+            post_id = int(data.split("_")[1])
+
+            from moderation import get_moderation_queue
+
+            mq = get_moderation_queue()
+            post = mq.get_post_by_id(post_id)
+
+            if not post:
+                await query.edit_message_text("❌ Пост не найден.")
+                return
+
+            # Approve the post
+            mq.approve_post(post_id, approved_by=str(query.from_user.id))
+
+            # Publish immediately
+            await query.edit_message_text("⏳ Публикую...")
+
+            # Get or download image
+            image_path = None
+            image_url = post.get("image_url")
+
+            if image_url and image_url.startswith(("http://", "https://")):
+                try:
+                    from og_parser import download_image
+                    image_path = download_image(image_url)
+                except Exception as e:
+                    logger.warning(f"Failed to download image: {e}")
+
+            # Send to channel
+            sender = TelegramSender()
+            if image_path:
+                success = sender.send_photo_to_channel(
+                    image_path, post["post_text"], parse_mode="HTML"
+                )
+            else:
+                success = sender.send_to_channel(post["post_text"], parse_mode="HTML")
+
+            if success:
+                mq.mark_published(post_id)
+                await query.edit_message_text(
+                    f"✅ Пост #{post_id} опубликован в канал!"
+                )
+            else:
+                mq.mark_failed(post_id, "Failed to send to channel")
+                await query.edit_message_text(f"❌ Ошибка публикации поста #{post_id}")
+
+        except Exception as e:
+            logger.error(f"Error approving post: {e}")
+            await query.edit_message_text(f"❌ Ошибка: {e}")
+
+    async def _handle_schedule(self, query, data: str):
+        """Show scheduling options for a post."""
+        post_id = int(data.split("_")[1])
+
+        keyboard = [
+            [
+                InlineKeyboardButton("🕐 Через 1 час", callback_data=f"schedule_time_{post_id}_1"),
+                InlineKeyboardButton("🕑 Через 3 часа", callback_data=f"schedule_time_{post_id}_3"),
+            ],
+            [
+                InlineKeyboardButton("🕕 Через 6 часов", callback_data=f"schedule_time_{post_id}_6"),
+                InlineKeyboardButton("📅 Завтра 10:00", callback_data=f"schedule_time_{post_id}_next"),
+            ],
+            [
+                InlineKeyboardButton("◀️ Назад", callback_data=f"back_to_moderation_{post_id}"),
+            ],
+        ]
+
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def _handle_schedule_time(self, query, data: str):
+        """Schedule post for selected time."""
+        try:
+            parts = data.split("_")
+            post_id = int(parts[2])
+            time_option = parts[3]
+
+            from datetime import datetime, timedelta
+            from moderation import get_moderation_queue
+
+            mq = get_moderation_queue()
+
+            # Calculate scheduled time
+            now = datetime.now()
+            if time_option == "next":
+                # Tomorrow at 10:00
+                scheduled = now.replace(hour=10, minute=0, second=0, microsecond=0)
+                scheduled += timedelta(days=1)
+            else:
+                hours = int(time_option)
+                scheduled = now + timedelta(hours=hours)
+
+            mq.schedule_post(post_id, scheduled, approved_by=str(query.from_user.id))
+
+            await query.edit_message_text(
+                f"📅 Пост #{post_id} запланирован на {scheduled.strftime('%d.%m %H:%M')}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error scheduling post: {e}")
+            await query.edit_message_text(f"❌ Ошибка: {e}")
+
+    async def _handle_edit(self, query, data: str):
+        """Start post editing flow."""
+        post_id = int(data.split("_")[1])
+
+        # Store post_id in user_data for later use
+        # For now, just show instructions
+        await query.answer(
+            "Редактирование: скопируйте текст, отредактируйте и отправьте с командой /edit " + str(post_id),
+            show_alert=True
+        )
+
+    async def _handle_reject(self, query, data: str):
+        """Show rejection confirmation."""
+        post_id = int(data.split("_")[1])
+
+        keyboard = [
+            [
+                InlineKeyboardButton("❌ Да, отклонить", callback_data=f"confirm_reject_{post_id}"),
+                InlineKeyboardButton("◀️ Отмена", callback_data=f"back_to_moderation_{post_id}"),
+            ],
+        ]
+
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def _handle_confirm_reject(self, query, data: str):
+        """Confirm post rejection."""
+        try:
+            post_id = int(data.split("_")[2])
+
+            from moderation import get_moderation_queue
+
+            mq = get_moderation_queue()
+            mq.reject_post(post_id, reason="Rejected by owner")
+
+            await query.edit_message_text(f"❌ Пост #{post_id} отклонён.")
+
+        except Exception as e:
+            logger.error(f"Error rejecting post: {e}")
+            await query.edit_message_text(f"❌ Ошибка: {e}")
 
     def run(self):
         """Run the bot with Python 3.14+ compatibility."""
@@ -651,6 +991,7 @@ class TelegramBotHandler:
 
         self.app = Application.builder().token(self.bot_token).build()
 
+        # Command handlers
         self.app.add_handler(CommandHandler("start", self.start_command))
         self.app.add_handler(CommandHandler("help", self.help_command))
         self.app.add_handler(CommandHandler("digest", self.digest_command))
@@ -659,6 +1000,14 @@ class TelegramBotHandler:
         self.app.add_handler(CommandHandler("preview", self.preview_command))
         self.app.add_handler(CommandHandler("publish_now", self.publish_now_command))
         self.app.add_handler(CommandHandler("stats", self.stats_command))
+
+        # Keyboard button handler (must be before CallbackQueryHandler)
+        self.app.add_handler(MessageHandler(
+            filters.TEXT & filters.Regex(r'^(📋 Очередь|📊 Статистика|🔄 Обновить|⚙️ Настройки)$'),
+            self.handle_keyboard_button
+        ))
+
+        # Inline button callback handler
         self.app.add_handler(CallbackQueryHandler(self.button_callback))
 
         logger.info("Bot started. Waiting for commands...")
