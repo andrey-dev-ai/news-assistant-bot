@@ -79,13 +79,14 @@ class TelegramSender:
         return result
 
     def _send_to_chat(
-        self, chat_id: str, text: str, parse_mode: str = "HTML"
+        self, chat_id: str, text: str, parse_mode: str = "HTML", disable_preview: bool = True
     ) -> None:
         """Send message to any chat (user or channel)."""
         data = {
             "chat_id": chat_id,
             "text": text,
             "parse_mode": parse_mode,
+            "disable_web_page_preview": disable_preview,
         }
         self._make_request("sendMessage", data)
 
@@ -462,7 +463,7 @@ class TelegramBotHandler:
                 format_type = post.get('format', 'unknown')
                 preview = f"{status_emoji} Пост {i} ({format_type})\n⏰ {scheduled}\n\n"
                 preview += post["post_text"]
-                await update.message.reply_text(preview, parse_mode="HTML")
+                await update.message.reply_text(preview, parse_mode="HTML", disable_web_page_preview=True)
 
         except Exception as e:
             logger.error(f"Error in /preview command: {e}")
