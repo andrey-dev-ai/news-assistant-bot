@@ -239,11 +239,11 @@ def publish_scheduled_post():
         # Send to channel
         sender = TelegramSender()
 
-        # Send with image if available, otherwise text only
+        # Send with image if available, otherwise text only (HTML for proper formatting)
         if image_path:
-            success = sender.send_photo_to_channel(image_path, post["post_text"])
+            success = sender.send_photo_to_channel(image_path, post["post_text"], parse_mode="HTML")
         else:
-            success = sender.send_to_channel(post["post_text"])
+            success = sender.send_to_channel(post["post_text"], parse_mode="HTML")
 
         if success:
             queue.mark_published(post["id"])

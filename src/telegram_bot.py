@@ -458,13 +458,11 @@ class TelegramBotHandler:
 
                 scheduled = post.get("scheduled_at", "")[:16] if post.get("scheduled_at") else "—"
 
-                # Full preview without markdown parsing
+                # Preview with HTML parsing for proper formatting
                 format_type = post.get('format', 'unknown')
                 preview = f"{status_emoji} Пост {i} ({format_type})\n⏰ {scheduled}\n\n"
-                preview += post["post_text"][:500]
-                if len(post["post_text"]) > 500:
-                    preview += "..."
-                await update.message.reply_text(preview)
+                preview += post["post_text"]
+                await update.message.reply_text(preview, parse_mode="HTML")
 
         except Exception as e:
             logger.error(f"Error in /preview command: {e}")
@@ -526,11 +524,11 @@ class TelegramBotHandler:
 
             sender = TelegramSender()
 
-            # Send with image if available
+            # Send with image if available (HTML for proper formatting)
             if image_path:
-                success = sender.send_photo_to_channel(image_path, post["post_text"])
+                success = sender.send_photo_to_channel(image_path, post["post_text"], parse_mode="HTML")
             else:
-                success = sender.send_to_channel(post["post_text"])
+                success = sender.send_to_channel(post["post_text"], parse_mode="HTML")
 
             if success:
                 queue.mark_published(post["id"])
