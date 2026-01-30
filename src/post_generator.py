@@ -1,4 +1,4 @@
-"""Generate individual posts from news articles for @ai_dlya_mamy channel."""
+"""Generate individual posts from news articles for @ai_dlya_doma channel."""
 
 import json
 import os
@@ -180,50 +180,44 @@ class PostGenerator:
         title = article.get("title", "")
         description = article.get("summary", "")[:500]
 
-        prompt = f"""Ты — классификатор контента для Telegram-канала "AI для мамы".
+        prompt = f"""Ты — классификатор контента для Telegram-канала "AI для дома".
 
 ЦЕЛЕВАЯ АУДИТОРИЯ:
-- Русскоязычные женщины 25-45 лет
-- НЕ технари, обычные пользователи
-- Хотят упростить быт, работу, семейные дела через AI
+- Все, кто интересуется AI и хочет использовать его в жизни
+- Не только технари — обычные люди тоже
+- Интересует: что нового в мире AI, какие инструменты появились, что изменилось
 
 ВКЛЮЧАТЬ (relevant: true):
-- AI для написания текстов, писем, резюме
-- Редактирование фото, создание изображений
-- Планирование, to-do листы, календари
-- Изучение языков
-- Рецепты, кулинария, меню
-- Личные финансы, бюджет
-- Здоровье, фитнес, медитация
-- Образование детей
-- Путешествия, бронирование
-- AI-ассистенты (ChatGPT, Claude, Gemini)
-- Бесплатные или недорогие инструменты (<$50/мес)
+- AI-инструменты любого типа (ChatGPT, Claude, Midjourney, Runway и др.)
+- Новости AI-компаний (OpenAI, Anthropic, Google, Meta, Microsoft)
+- Обновления моделей (GPT-5, Claude 4, Gemini 2, Llama 4 и др.)
+- Тренды в AI: что меняется, куда движется индустрия
+- Интересные применения AI (кейсы, примеры использования)
+- Сравнения инструментов
+- AI в повседневной жизни
+- Новые функции в существующих сервисах
 
 ИСКЛЮЧАТЬ (relevant: false):
-- Инструменты для разработчиков (API, SDK, CLI, framework, library)
-- Enterprise/B2B решения (CRM, ERP, "for teams", "enterprise")
-- Research-модели без UI (weights, checkpoint, .gguf)
-- Инструменты дороже $50/месяц
-- Требующие технических навыков
-- Криптовалюта, NFT, blockchain
-- Новости без конкретного инструмента
-- Научные исследования без практической пользы
-- Новости про инвестиции в AI-компании
+- Чисто техническая документация (API docs, SDK reference)
+- Код, туториалы для программистов
+- Только финансовые новости (инвестиции без продукта/функции)
+- Статьи старше 7 дней (проверь дату если указана)
+- Криптовалюта, NFT, blockchain (если не связано с AI)
+- Научные статьи без практической пользы
+- Вакансии, найм
 
-EDGE-CASES — как обрабатывать:
-- "AI для бизнеса" → ИСКЛЮЧИТЬ (B2B)
-- "ChatGPT обновился" → ВКЛЮЧИТЬ только если есть consumer feature
-- "Новая модель от OpenAI" → ИСКЛЮЧИТЬ если только API, ВКЛЮЧИТЬ если есть UI
-- "10 AI tools for X" — listicle → relevant: true, confidence: 70, needs_review: true
-- Заголовок на другом языке (не русский/английский) → relevant: false, reason: "non-target-language"
-- Пустое описание → снизь confidence на 20 пунктов
-- Подозрительный URL → добавь url_check_needed: true
+EDGE-CASES:
+- "OpenAI raises $10B" → ИСКЛЮЧИТЬ (только финансы)
+- "OpenAI launches new feature" → ВКЛЮЧИТЬ
+- "How to build AI agent" (для разработчиков) → ИСКЛЮЧИТЬ
+- "Best AI tools for 2025" → ВКЛЮЧИТЬ
+- "New Claude model" → ВКЛЮЧИТЬ
+- Пустое описание → снизь confidence на 20
 
-FALLBACK при неопределённости:
-- Если не уверен → confidence < 70
-- Если контент на грани → relevant: true, confidence: 55-65, needs_review: true
-- Если не можешь определить категорию → category: "uncategorized"
+FALLBACK:
+- Не уверен → confidence < 70
+- На грани → relevant: true, confidence: 55-65, needs_review: true
+- Нет категории → category: "news"
 
 СТАТЬЯ:
 Заголовок: {title}
@@ -232,14 +226,13 @@ FALLBACK при неопределённости:
 Ссылка: {article.get('link', '')}
 
 Определи:
-1. Релевантна ли статья для канала?
+1. Релевантна ли статья?
 2. Уверенность (0-100)
-3. Категория (tool/tip/prompt/lifestyle/education/uncategorized)
-4. Лучший формат поста (ai_tool/quick_tip/prompt_day)
-5. Причина решения (кратко на русском)
+3. Категория (tool/news/update/trend/comparison/tip)
+4. Причина (кратко на русском)
 
 Ответь ТОЛЬКО валидным JSON без markdown:
-{{"relevant": true/false, "confidence": 0-100, "category": "...", "format": "...", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
+{{"relevant": true/false, "confidence": 0-100, "category": "...", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
 
         try:
             response = self._call_api(self.haiku_model, prompt, max_tokens=250)
