@@ -13,6 +13,7 @@ from anthropic import (
     APITimeoutError,
     RateLimitError,
 )
+from openai import OpenAI
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -111,6 +112,96 @@ def validate_telegram_html(text: str) -> str:
     text = re.sub(r'<(?!/?(?:b|i|u|s|code|pre|a)[^>]*>)[^>]+>', '', text)
 
     return text.strip()
+
+
+def is_good_image(url: str) -> bool:
+    """
+    Check if OG-image URL is likely a good quality image.
+    Returns False for placeholders, logos, icons, etc.
+    """
+    if not url:
+        return False
+
+    url_lower = url.lower()
+
+    # Bad patterns - likely placeholders or low-quality images
+    bad_patterns = [
+        'placeholder', 'default', 'logo', 'icon', 'avatar',
+        '1x1', '1x1.', 'pixel', 'blank', 'empty', 'spacer',
+        'og-default', 'social-default', 'share-default',
+        'no-image', 'noimage', 'missing'
+    ]
+
+    if any(pattern in url_lower for pattern in bad_patterns):
+        return False
+
+    # Check for valid image extension
+    valid_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+    has_valid_ext = any(url_lower.endswith(ext) or f'{ext}?' in url_lower
+                        for ext in valid_extensions)
+
+    # Some URLs don't have extensions but are still valid (e.g., CDN URLs)
+    # Accept them if they don't match bad patterns
+    if not has_valid_ext:
+        # Check for common image CDN patterns
+        cdn_patterns = ['cloudinary', 'imgix', 'cloudfront', 'akamai',
+                        'fastly', 'cdn', 'images', 'media', 'assets']
+        if not any(cdn in url_lower for cdn in cdn_patterns):
+            return False
+
+    return True
+
+
+def generate_image_via_openai(prompt: str) -> Optional[str]:
+    """
+    Generate image using OpenAI DALL-E 3.
+    Returns URL of generated image or None on error.
+    """
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        logger.warning("OPENAI_API_KEY not set, cannot generate image")
+        return None
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1
+        )
+        return response.data[0].url
+    except Exception as e:
+        logger.error(f"OpenAI image generation failed: {e}")
+        return None
+
+
+def get_image_for_post(article: Dict, image_prompt: str = None) -> Tuple[Optional[str], str]:
+    """
+    Get image for post using hybrid approach:
+    1. Try OG-image from article if it's good quality
+    2. Fall back to OpenAI generation
+
+    Returns:
+        Tuple of (image_url, source_type)
+        source_type: 'og_image', 'generated', or 'none'
+    """
+    # Try OG-image first
+    og_image = article.get('image_url')
+    if og_image and is_good_image(og_image):
+        logger.info(f"Using OG-image: {og_image[:50]}...")
+        return (og_image, 'og_image')
+
+    # Generate if we have a prompt
+    if image_prompt:
+        logger.info("OG-image not suitable, generating via OpenAI...")
+        generated_url = generate_image_via_openai(image_prompt)
+        if generated_url:
+            return (generated_url, 'generated')
+
+    logger.warning("No image available for post")
+    return (None, 'none')
 
 
 class PostFormat(Enum):
@@ -250,24 +341,19 @@ FALLBACK:
             logger.error(f"Error classifying article: {e}")
             return None
 
-    def generate_post(self, article: Dict, post_format: PostFormat) -> Optional[GeneratedPost]:
+    def generate_post(self, article: Dict, post_format: PostFormat = None) -> Optional[GeneratedPost]:
         """
-        Generate a post from article in specified format.
+        Generate a post from article using universal long-form format.
         Uses Sonnet for quality.
-        """
-        format_templates = {
-            PostFormat.AI_TOOL: self._get_ai_tool_prompt(article),
-            PostFormat.QUICK_TIP: self._get_quick_tip_prompt(article),
-            PostFormat.PROMPT_DAY: self._get_prompt_day_prompt(article),
-        }
 
-        prompt = format_templates.get(post_format)
-        if not prompt:
-            logger.error(f"Unknown format: {post_format}")
-            return None
+        Note: post_format is kept for backward compatibility but not used.
+        All posts now use the same universal format (1000-1500 chars).
+        """
+        prompt = self._get_universal_prompt(article)
 
         try:
-            response = self._call_api(self.sonnet_model, prompt, max_tokens=800)
+            # Increased max_tokens for longer posts
+            response = self._call_api(self.sonnet_model, prompt, max_tokens=1500)
 
             # Parse response (expecting JSON with text and image_prompt)
             try:
@@ -311,7 +397,7 @@ FALLBACK:
 
             return GeneratedPost(
                 text=text,
-                format=post_format,
+                format=post_format or PostFormat.AI_TOOL,
                 article_url=article.get("link", ""),
                 article_title=article.get("title", ""),
                 image_prompt=image_prompt,
@@ -321,116 +407,65 @@ FALLBACK:
             logger.error(f"Error generating post: {e}")
             return None
 
-    def _get_ai_tool_prompt(self, article: Dict) -> str:
-        """Prompt for AI-находка дня format."""
+    def _get_universal_prompt(self, article: Dict) -> str:
+        """
+        Universal prompt for long-form posts (1500-2000 chars).
+        Style: Databoard-inspired, links embedded in text.
+        """
         article_link = article.get('link', '')
-        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
+        source_name = article.get('source', 'источник')
 
-ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари. Хотят упростить быт через AI.
+        return f"""Ты — копирайтер Telegram-канала "AI для дома" (@ai_dlya_doma).
+
+АУДИТОРИЯ:
+- Все, кто интересуется AI и хочет применять его в жизни
+- Не только программисты — обычные люди тоже
+- Ценят: актуальность, практическую пользу, конкретику
 
 СТИЛЬ:
-- Дружелюбный, как совет от подруги
-- БЕЗ технического жаргона
-- Эмодзи: 1-2 штуки, по делу
-- Обращение на "ты"
-- Короткие предложения
-- Максимум 350 символов
+- Информативный, энергичный, но без кликбейта
+- Эмодзи: 1-2 штуки, только в заголовке
+- Обращение: нейтральное или на "вы"
+- Ссылки ВНУТРИ текста, не в конце
+- Длина: 1000-1500 символов (это важно!)
 
-АНТИ-ПАТТЕРНЫ (никогда не используй):
-- "Нейросеть" → заменяй на "AI"
-- "Революционный", "уникальный", "лучший" → убирай
-- Начало с "Представляем..." или "Встречайте..." → начинай с сути
-- "Цена: уточняй на сайте" → ВООБЩЕ НЕ ПИШИ если нет цены
-- Реакции типа "🔥 — уже пробовала" → НЕ ДОБАВЛЯЙ
-- ГОЛЫЕ URL — НИКОГДА не пиши URL как есть, только через HTML-ссылку
+СТРУКТУРА ПОСТА:
+```
+[Эмодзи] <b>Заголовок — короткий, цепляющий</b>
+
+Первый абзац — суть новости. О чём речь, почему это интересно. 2-3 предложения.
+
+Второй абзац — детали. Что именно изменилось, как работает, какие функции. Здесь можно <a href="URL">вставить ссылку</a> на источник или сам сервис.
+
+Третий абзац — контекст. Почему это важно, как это влияет на рынок/пользователей, что думают эксперты.
+
+[Опционально] Четвёртый абзац — практический вывод или вопрос к читателям.
+```
+
+АНТИ-ПАТТЕРНЫ (НИКОГДА не используй):
+- Шаблонные CTA типа "👉 Попробовать", "🔗 Ссылка"
+- Голые URL без <a> тегов
+- "Нейросеть" → используй "AI" или название модели
+- "Революционный", "уникальный", "прорывной"
+- Начало с "Представляем...", "Встречайте..."
+- Список фич через буллеты в каждом посте
+- Пустые обещания без конкретики
+
+ПРАВИЛА ССЫЛОК:
+- Ссылки встраивай В ТЕКСТ: <a href="URL">читайте подробнее</a>
+- Текст ссылки должен быть осмысленным: "пишет TechCrunch", "сообщает компания"
+- Можно добавить 1-2 ссылки, не больше
+- Основная ссылка на источник: {article_link}
 
 СТАТЬЯ ДЛЯ ОБРАБОТКИ:
 Заголовок: {article.get('title', '')}
-Описание: {article.get('summary', '')[:500]}
+Источник: {source_name}
+Описание: {article.get('summary', '')[:800]}
 Ссылка: {article_link}
 
-ФОРМАТ ПОСТА (HTML-разметка для Telegram):
-```
-🤖 <b>[Название инструмента]</b>
+Ответ ТОЛЬКО JSON без markdown блоков:
+{{"text": "готовый пост с HTML-разметкой, 1000-1500 символов", "image_prompt": "DALL-E prompt in English, tech illustration style, modern, clean, 40 words max"}}"""
 
-[Что делает — 1-2 фразы]
-
-[Зачем нужно тебе — 1 фраза]
-
-[Только если ТОЧНО известна цена: 💰 Бесплатно / $X/мес]
-
-👉 <a href="{article_link}">Попробовать</a>
-```
-
-ВАЖНО О ССЫЛКАХ:
-- НИКОГДА не пиши голый URL
-- Используй ТОЛЬКО HTML-формат: <a href="URL">текст</a>
-- Текст ссылки: "Попробовать", "Смотреть", "Открыть"
-- URL бери из статьи: {article_link}
-
-Ответ ТОЛЬКО в формате JSON без markdown блоков:
-{{"text": "готовый пост с HTML-разметкой", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words max"}}"""
-
-    def _get_quick_tip_prompt(self, article: Dict) -> str:
-        """Prompt for Быстрый совет format."""
-        article_link = article.get('link', '')
-        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
-
-ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
-
-СТИЛЬ: короткий совет, 200-250 символов, без воды
-
-СТАТЬЯ:
-Заголовок: {article.get('title', '')}
-Описание: {article.get('summary', '')[:500]}
-Ссылка: {article_link}
-
-ФОРМАТ (HTML-разметка для Telegram):
-```
-⚡ <b>[Заголовок совета]</b>
-
-[Что сделать — 1-2 предложения]
-
-✨ [Результат — что получишь]
-
-👉 <a href="{article_link}">Подробнее</a>
-```
-
-ВАЖНО О ССЫЛКАХ:
-- НИКОГДА не пиши голый URL
-- Используй ТОЛЬКО: <a href="URL">текст</a>
-
-Ответ ТОЛЬКО JSON без markdown:
-{{"text": "готовый пост с HTML", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
-
-    def _get_prompt_day_prompt(self, article: Dict) -> str:
-        """Prompt for Промт дня format."""
-        return f"""Ты — копирайтер Telegram-канала "AI для мамы".
-
-ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
-
-СТИЛЬ: короткий полезный промт, 300-350 символов
-
-СТАТЬЯ:
-Заголовок: {article.get('title', '')}
-Описание: {article.get('summary', '')[:500]}
-
-ФОРМАТ (HTML-разметка для Telegram):
-```
-🎯 <b>[Тема промта]</b>
-
-<b>Промт:</b>
-<code>[готовый промт на русском, можно скопировать]</code>
-
-✨ [Что получишь — 1 фраза]
-```
-
-ВАЖНО:
-- Промт оберни в <code></code> — так удобно копировать
-- Заголовки в <b></b>
-
-Ответ ТОЛЬКО JSON без markdown:
-{{"text": "готовый пост с HTML", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
 
     def generate_image_prompt(self, post: GeneratedPost) -> str:
         """
