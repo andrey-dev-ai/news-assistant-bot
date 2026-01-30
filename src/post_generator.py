@@ -76,6 +76,43 @@ def parse_classifier_response(response_text: str) -> dict:
         return response
 
 
+def validate_telegram_html(text: str) -> str:
+    """
+    Validate and fix common HTML issues for Telegram.
+
+    Telegram supports: <b>, <i>, <u>, <s>, <code>, <pre>, <a href="">
+    """
+    if not text:
+        return text
+
+    # Allowed Telegram HTML tags
+    allowed_tags = ['b', 'i', 'u', 's', 'code', 'pre', 'a']
+
+    # Count open and close tags
+    for tag in allowed_tags:
+        open_count = len(re.findall(rf'<{tag}[^>]*>', text, re.IGNORECASE))
+        close_count = len(re.findall(rf'</{tag}>', text, re.IGNORECASE))
+
+        # If imbalanced, try to fix or remove
+        if open_count != close_count:
+            logger.warning(f"HTML tag <{tag}> imbalanced: {open_count} open, {close_count} close")
+            # Remove all instances of this tag if imbalanced
+            text = re.sub(rf'<{tag}[^>]*>', '', text, flags=re.IGNORECASE)
+            text = re.sub(rf'</{tag}>', '', text, flags=re.IGNORECASE)
+
+    # Fix common LLM mistakes with <a> tags
+    # Fix: <a href = "url"> → <a href="url">
+    text = re.sub(r'<a\s+href\s*=\s*["\']([^"\']+)["\']>', r'<a href="\1">', text)
+
+    # Fix: missing quotes around href
+    text = re.sub(r'<a\s+href=([^"\'\s>]+)>', r'<a href="\1">', text)
+
+    # Remove any unsupported HTML tags
+    text = re.sub(r'<(?!/?(?:b|i|u|s|code|pre|a)[^>]*>)[^>]+>', '', text)
+
+    return text.strip()
+
+
 class PostFormat(Enum):
     """Types of posts for the channel."""
     AI_TOOL = "ai_tool"          # AI-находка дня
@@ -93,6 +130,7 @@ class GeneratedPost:
     article_url: str
     article_title: str
     image_prompt: Optional[str] = None
+    image_url: Optional[str] = None  # OG/RSS image URL from article
 
 
 class PostGenerator:
@@ -275,12 +313,16 @@ FALLBACK при неопределённости:
                 text = response
                 image_prompt = None
 
+            # Validate and fix HTML before returning
+            text = validate_telegram_html(text)
+
             return GeneratedPost(
                 text=text,
                 format=post_format,
                 article_url=article.get("link", ""),
                 article_title=article.get("title", ""),
                 image_prompt=image_prompt,
+                image_url=article.get("image_url"),  # OG/RSS image from article
             )
         except Exception as e:
             logger.error(f"Error generating post: {e}")
@@ -288,6 +330,7 @@ FALLBACK при неопределённости:
 
     def _get_ai_tool_prompt(self, article: Dict) -> str:
         """Prompt for AI-находка дня format."""
+        article_link = article.get('link', '')
         return f"""Ты — копирайтер Telegram-канала "AI для мамы".
 
 ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари. Хотят упростить быт через AI.
@@ -298,7 +341,7 @@ FALLBACK при неопределённости:
 - Эмодзи: 1-2 штуки, по делу
 - Обращение на "ты"
 - Короткие предложения
-- Максимум 300 символов (очень сжато!)
+- Максимум 350 символов
 
 АНТИ-ПАТТЕРНЫ (никогда не используй):
 - "Нейросеть" → заменяй на "AI"
@@ -306,69 +349,95 @@ FALLBACK при неопределённости:
 - Начало с "Представляем..." или "Встречайте..." → начинай с сути
 - "Цена: уточняй на сайте" → ВООБЩЕ НЕ ПИШИ если нет цены
 - Реакции типа "🔥 — уже пробовала" → НЕ ДОБАВЛЯЙ
+- ГОЛЫЕ URL — НИКОГДА не пиши URL как есть, только через HTML-ссылку
 
 СТАТЬЯ ДЛЯ ОБРАБОТКИ:
 Заголовок: {article.get('title', '')}
 Описание: {article.get('summary', '')[:500]}
-Ссылка: {article.get('link', '')}
+Ссылка: {article_link}
 
-ФОРМАТ ПОСТА (КОРОТКИЙ!):
+ФОРМАТ ПОСТА (HTML-разметка для Telegram):
 ```
-🤖 [Название]
+🤖 <b>[Название инструмента]</b>
 
-[Что делает — 1 фраза]
-[Зачем нужно — 1 фраза]
+[Что делает — 1-2 фразы]
+
+[Зачем нужно тебе — 1 фраза]
 
 [Только если ТОЧНО известна цена: 💰 Бесплатно / $X/мес]
 
-→ [ссылка]
+👉 <a href="{article_link}">Попробовать</a>
 ```
 
-ВАЖНО: Ответ ТОЛЬКО в формате JSON без markdown блоков:
-{{"text": "готовый пост", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words max"}}"""
+ВАЖНО О ССЫЛКАХ:
+- НИКОГДА не пиши голый URL
+- Используй ТОЛЬКО HTML-формат: <a href="URL">текст</a>
+- Текст ссылки: "Попробовать", "Смотреть", "Открыть"
+- URL бери из статьи: {article_link}
+
+Ответ ТОЛЬКО в формате JSON без markdown блоков:
+{{"text": "готовый пост с HTML-разметкой", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words max"}}"""
 
     def _get_quick_tip_prompt(self, article: Dict) -> str:
         """Prompt for Быстрый совет format."""
+        article_link = article.get('link', '')
         return f"""Ты — копирайтер Telegram-канала "AI для мамы".
 
-СТИЛЬ: короткий совет, 150-200 символов, без воды
+ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
+
+СТИЛЬ: короткий совет, 200-250 символов, без воды
 
 СТАТЬЯ:
 Заголовок: {article.get('title', '')}
 Описание: {article.get('summary', '')[:500]}
+Ссылка: {article_link}
 
-ФОРМАТ:
+ФОРМАТ (HTML-разметка для Telegram):
 ```
-⚡ [Что сделать — 1-2 предложения]
+⚡ <b>[Заголовок совета]</b>
 
-[Результат — 1 фраза]
+[Что сделать — 1-2 предложения]
+
+✨ [Результат — что получишь]
+
+👉 <a href="{article_link}">Подробнее</a>
 ```
 
-ВАЖНО: Ответ ТОЛЬКО JSON без markdown:
-{{"text": "готовый пост", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
+ВАЖНО О ССЫЛКАХ:
+- НИКОГДА не пиши голый URL
+- Используй ТОЛЬКО: <a href="URL">текст</a>
+
+Ответ ТОЛЬКО JSON без markdown:
+{{"text": "готовый пост с HTML", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
 
     def _get_prompt_day_prompt(self, article: Dict) -> str:
         """Prompt for Промт дня format."""
         return f"""Ты — копирайтер Telegram-канала "AI для мамы".
 
-СТИЛЬ: короткий полезный промт, 250-300 символов
+ЦЕЛЕВАЯ АУДИТОРИЯ: женщины 25-45, НЕ технари.
+
+СТИЛЬ: короткий полезный промт, 300-350 символов
 
 СТАТЬЯ:
 Заголовок: {article.get('title', '')}
 Описание: {article.get('summary', '')[:500]}
 
-ФОРМАТ:
+ФОРМАТ (HTML-разметка для Telegram):
 ```
-🎯 [Тема]
+🎯 <b>[Тема промта]</b>
 
-Промт:
-"[готовый промт на русском, короткий]"
+<b>Промт:</b>
+<code>[готовый промт на русском, можно скопировать]</code>
 
-[Что получишь — 1 фраза]
+✨ [Что получишь — 1 фраза]
 ```
 
-ВАЖНО: Ответ ТОЛЬКО JSON без markdown:
-{{"text": "готовый пост", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
+ВАЖНО:
+- Промт оберни в <code></code> — так удобно копировать
+- Заголовки в <b></b>
+
+Ответ ТОЛЬКО JSON без markdown:
+{{"text": "готовый пост с HTML", "image_prompt": "DALL-E prompt in English, flat design, pastel colors, 40 words"}}"""
 
     def generate_image_prompt(self, post: GeneratedPost) -> str:
         """
@@ -416,7 +485,7 @@ Respond with ONLY the prompt, no explanations."""
 
         for article in articles:
             result = self.classify_article(article)
-            if result and result.get("relevant") and result.get("confidence", 0) >= 60:
+            if result and result.get("relevant") and result.get("confidence", 0) >= 45:
                 classified.append((article, result))
                 logger.info(
                     f"Relevant: {article.get('title', '')[:50]}... "

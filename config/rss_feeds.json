@@ -1,32 +1,50 @@
 [
   {
-    "name": "TechCrunch AI",
-    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
-    "enabled": true
+    "name": "One Useful Thing",
+    "url": "https://www.oneusefulthing.org/feed",
+    "enabled": true,
+    "comment": "Практичные советы по AI от Ethan Mollick"
   },
   {
-    "name": "VentureBeat AI",
-    "url": "https://venturebeat.com/category/ai/feed/",
-    "enabled": true
+    "name": "The Rundown AI",
+    "url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml",
+    "enabled": true,
+    "comment": "Ежедневные новости AI простым языком"
   },
   {
-    "name": "AI News",
-    "url": "https://www.artificialintelligence-news.com/feed/",
-    "enabled": true
+    "name": "The Verge AI",
+    "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+    "enabled": true,
+    "comment": "AI новости для широкой аудитории"
   },
   {
-    "name": "Crunchbase AI",
-    "url": "https://news.crunchbase.com/sections/ai/feed/",
-    "enabled": true
+    "name": "ZDNET AI",
+    "url": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
+    "enabled": true,
+    "comment": "Практичные статьи про AI"
   },
   {
-    "name": "MIT Tech Review AI",
-    "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
-    "enabled": true
+    "name": "Futurism AI",
+    "url": "https://futurism.com/categories/ai-artificial-intelligence/feed",
+    "enabled": true,
+    "comment": "AI новости доступным языком"
+  },
+  {
+    "name": "Synthedia",
+    "url": "https://synthedia.substack.com/feed",
+    "enabled": true,
+    "comment": "ChatGPT, DALL-E, генеративный AI"
   },
   {
     "name": "Last Week in AI",
     "url": "https://lastweekin.ai/feed",
-    "enabled": true
+    "enabled": true,
+    "comment": "Еженедельные сводки AI новостей"
+  },
+  {
+    "name": "THE DECODER",
+    "url": "https://the-decoder.com/feed/",
+    "enabled": true,
+    "comment": "AI news, business, and research"
   }
 ]

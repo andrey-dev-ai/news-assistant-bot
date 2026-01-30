@@ -136,9 +136,13 @@ def generate_daily_posts():
 
         logger.info(f"Processing {len(unique_articles)} unique articles")
 
+        # Enrich articles with images (OG/RSS)
+        logger.info("Enriching articles with images...")
+        enriched_articles = parser.enrich_with_og_images(unique_articles[:15])
+
         # Generate posts
         generator = PostGenerator()
-        posts = generator.generate_daily_posts(unique_articles, count=5)
+        posts = generator.generate_daily_posts(enriched_articles, count=5)
 
         if not posts:
             logger.warning("No posts generated")
@@ -153,7 +157,8 @@ def generate_daily_posts():
                 "text": post.text,
                 "article_url": post.article_url,
                 "article_title": post.article_title,
-                "image_prompt": post.image_prompt,
+                "image_url": post.image_url,  # OG/RSS image URL
+                "image_prompt": post.image_prompt,  # Fallback for AI generation
                 "format": post.format.value,
             }
             for post in posts
@@ -195,8 +200,25 @@ def publish_scheduled_post():
 
         logger.info(f"Publishing post {post['id']}: {post['format']}")
 
-        # Generate image if prompt exists and no image_url yet
-        image_path = post.get("image_url")
+        # Get or prepare image
+        image_path = None
+        image_url = post.get("image_url")
+
+        # Step 1: If we have OG/RSS image URL - download it
+        if image_url and image_url.startswith(("http://", "https://")):
+            try:
+                from og_parser import download_image
+                image_path = download_image(image_url)
+                if image_path:
+                    queue.update_image_url(post["id"], image_path)
+                    logger.info(f"Downloaded OG image for post {post['id']}: {image_path}")
+            except Exception as e:
+                logger.warning(f"Failed to download OG image for post {post['id']}: {e}")
+        elif image_url:
+            # Already a local path
+            image_path = image_url
+
+        # Step 2: If still no image but have prompt - generate via AI
         if not image_path and post.get("image_prompt"):
             try:
                 from image_generator import get_image_generator
@@ -209,9 +231,9 @@ def publish_scheduled_post():
                 )
                 if image_path:
                     queue.update_image_url(post["id"], image_path)
-                    logger.info(f"Generated image for post {post['id']}: {image_path}")
+                    logger.info(f"Generated AI image for post {post['id']}: {image_path}")
             except Exception as e:
-                logger.warning(f"Failed to generate image for post {post['id']}: {e}")
+                logger.warning(f"Failed to generate AI image for post {post['id']}: {e}")
                 # Continue without image
 
         # Send to channel

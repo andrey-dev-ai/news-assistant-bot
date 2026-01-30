@@ -232,6 +232,7 @@ class PostQueue:
                 post_text=post.get("text", ""),
                 article_url=post.get("article_url", ""),
                 article_title=post.get("article_title", ""),
+                image_url=post.get("image_url"),  # From article OG/RSS
                 image_prompt=post.get("image_prompt"),
                 format_type=post.get("format", "ai_tool"),
                 scheduled_at=scheduled_at,

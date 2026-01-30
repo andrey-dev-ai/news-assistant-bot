@@ -79,7 +79,7 @@ class TelegramSender:
         return result
 
     def _send_to_chat(
-        self, chat_id: str, text: str, parse_mode: str = "Markdown"
+        self, chat_id: str, text: str, parse_mode: str = "HTML"
     ) -> None:
         """Send message to any chat (user or channel)."""
         data = {
@@ -89,7 +89,7 @@ class TelegramSender:
         }
         self._make_request("sendMessage", data)
 
-    def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
+    def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
         """Send message to user via HTTP API."""
         try:
             if len(text) > 4000:
@@ -105,7 +105,7 @@ class TelegramSender:
             logger.error(f"Error sending message: {e}")
             return False
 
-    def send_to_channel(self, text: str, parse_mode: str = "Markdown") -> bool:
+    def send_to_channel(self, text: str, parse_mode: str = "HTML") -> bool:
         """
         Send message to Telegram channel.
 
@@ -144,7 +144,7 @@ class TelegramSender:
         ),
     )
     def _send_photo(
-        self, chat_id: str, photo_path: str, caption: str, parse_mode: str = "Markdown"
+        self, chat_id: str, photo_path: str, caption: str, parse_mode: str = "HTML"
     ) -> dict:
         """
         Send photo to a chat using multipart/form-data.
@@ -179,7 +179,7 @@ class TelegramSender:
             return result
 
     def send_photo_to_channel(
-        self, photo_path: str, caption: str, parse_mode: str = "Markdown"
+        self, photo_path: str, caption: str, parse_mode: str = "HTML"
     ) -> bool:
         """
         Send photo with caption to Telegram channel.
@@ -208,7 +208,7 @@ class TelegramSender:
             return False
 
     def send_photo(
-        self, photo_path: str, caption: str, parse_mode: str = "Markdown"
+        self, photo_path: str, caption: str, parse_mode: str = "HTML"
     ) -> bool:
         """
         Send photo with caption to user.
@@ -250,7 +250,7 @@ class TelegramSender:
         return chunks
 
     def send_message_with_button(
-        self, text: str, parse_mode: str = "Markdown"
+        self, text: str, parse_mode: str = "HTML"
     ) -> bool:
         """Send message with 'Get Digest' button."""
         try:
@@ -328,18 +328,18 @@ class TelegramBotHandler:
     ):
         """Handle /help command."""
         await update.message.reply_text(
-            "🤖 *AI News Bot - Помощь*\n\n"
-            "*Phase 2 команды:*\n"
+            "🤖 <b>AI News Bot - Помощь</b>\n\n"
+            "<b>Phase 2 команды:</b>\n"
             "/generate - сгенерировать 5 постов на день\n"
             "/preview - посмотреть запланированные посты\n"
-            "/publish\\_now - опубликовать следующий пост\n"
+            "/publish_now - опубликовать следующий пост\n"
             "/stats - статистика и мониторинг\n\n"
-            "*Legacy команды:*\n"
+            "<b>Legacy команды:</b>\n"
             "/digest - получить дайджест лично\n"
             "/post - опубликовать дайджест в канал\n\n"
             "/start - начать работу\n"
             "/help - эта справка",
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
 
     async def digest_command(
@@ -387,9 +387,13 @@ class TelegramBotHandler:
                 await update.message.reply_text("❌ Нет новых статей.")
                 return
 
+            # Enrich articles with OG images (for those without RSS images)
             await update.message.reply_text(
-                f"📰 Найдено {len(unsent)} новых статей. Генерирую посты..."
+                f"📰 Найдено {len(unsent)} новых статей. Загружаю картинки..."
             )
+            unsent = parser.enrich_with_og_images(unsent[:10])  # Limit to avoid slowdown
+
+            await update.message.reply_text("🎨 Генерирую посты...")
 
             # Generate posts
             posts = generator.generate_daily_posts(unsent, count=5)
@@ -404,7 +408,8 @@ class TelegramBotHandler:
                     "text": post.text,
                     "article_url": post.article_url,
                     "article_title": post.article_title,
-                    "image_prompt": post.image_prompt,
+                    "image_url": post.image_url,  # OG/RSS image
+                    "image_prompt": post.image_prompt,  # Fallback for generation
                     "format": post.format.value,
                 }
                 for post in posts
@@ -442,7 +447,7 @@ class TelegramBotHandler:
                 await update.message.reply_text("📭 Нет запланированных постов.")
                 return
 
-            await update.message.reply_text(f"📋 *Запланировано постов:* {len(posts)}\n", parse_mode="Markdown")
+            await update.message.reply_text(f"📋 <b>Запланировано постов:</b> {len(posts)}\n", parse_mode="HTML")
 
             for i, post in enumerate(posts, 1):
                 status_emoji = {
@@ -485,13 +490,28 @@ class TelegramBotHandler:
 
             await update.message.reply_text(f"⏳ Публикую пост {post['id']}...")
 
-            # Generate image if needed
-            image_path = post.get("image_url")
+            # Get or download image
+            image_path = None
+            image_url = post.get("image_url")
+
+            # Step 1: If we have OG/RSS image URL - download it
+            if image_url and image_url.startswith(("http://", "https://")):
+                try:
+                    from og_parser import download_image
+                    await update.message.reply_text("📷 Скачиваю картинку...")
+                    image_path = download_image(image_url)
+                    if image_path:
+                        queue.update_image_url(post["id"], image_path)
+                        logger.info(f"Downloaded OG image: {image_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to download OG image: {e}")
+
+            # Step 2: If still no image but have prompt - generate via AI
             if not image_path and post.get("image_prompt"):
                 try:
                     from image_generator import get_image_generator
 
-                    await update.message.reply_text("🎨 Генерирую картинку...")
+                    await update.message.reply_text("🎨 Генерирую картинку через AI...")
                     generator = get_image_generator()
                     image_path = generator.generate_for_post(
                         post_id=post["id"],
@@ -501,7 +521,7 @@ class TelegramBotHandler:
                     if image_path:
                         queue.update_image_url(post["id"], image_path)
                 except Exception as e:
-                    logger.warning(f"Failed to generate image: {e}")
+                    logger.warning(f"Failed to generate AI image: {e}")
                     await update.message.reply_text(f"⚠️ Картинка не сгенерирована: {e}")
 
             sender = TelegramSender()
@@ -539,13 +559,13 @@ class TelegramBotHandler:
             monitor = get_monitor()
             stats_msg = monitor.format_stats_message()
 
-            await update.message.reply_text(stats_msg, parse_mode="Markdown")
+            await update.message.reply_text(stats_msg, parse_mode="HTML")
 
             # If there are alerts, also send daily report
             alerts = monitor.get_alerts()
             if alerts:
                 report = monitor.format_daily_report()
-                await update.message.reply_text(report, parse_mode="Markdown")
+                await update.message.reply_text(report, parse_mode="HTML")
 
         except Exception as e:
             logger.error(f"Error in /stats command: {e}")
@@ -627,7 +647,9 @@ class TelegramBotHandler:
                 await query.message.reply_text(f"❌ Ошибка: {e}")
 
     def run(self):
-        """Run the bot."""
+        """Run the bot with Python 3.14+ compatibility."""
+        import sys
+
         self.app = Application.builder().token(self.bot_token).build()
 
         self.app.add_handler(CommandHandler("start", self.start_command))
@@ -641,7 +663,29 @@ class TelegramBotHandler:
         self.app.add_handler(CallbackQueryHandler(self.button_callback))
 
         logger.info("Bot started. Waiting for commands...")
-        self.app.run_polling(drop_pending_updates=True)
+
+        # Python 3.14+ removed implicit event loop creation
+        if sys.version_info >= (3, 14):
+            logger.info("Using asyncio.run() for Python 3.14+")
+            asyncio.run(self._run_polling_async())
+        else:
+            self.app.run_polling(drop_pending_updates=True)
+
+    async def _run_polling_async(self):
+        """Run polling asynchronously for Python 3.14+ compatibility."""
+        async with self.app:
+            await self.app.start()
+            await self.app.updater.start_polling(drop_pending_updates=True)
+            logger.info("Bot polling started")
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                logger.info("Shutdown signal received")
+            finally:
+                await self.app.updater.stop()
+                await self.app.stop()
+                logger.info("Bot stopped")
 
 
 if __name__ == "__main__":
@@ -651,10 +695,12 @@ if __name__ == "__main__":
 
     sender = TelegramSender()
 
-    test_message = """🤖 *Тестовое сообщение*
+    test_message = """🤖 <b>Тестовое сообщение</b>
 
 Это тест вашего AI News Bot!
-Бот работает корректно!"""
+Бот работает корректно!
+
+👉 <a href="https://example.com">Тестовая ссылка</a>"""
 
     print("Sending test message with button...")
     sender.send_message_with_button(test_message)
