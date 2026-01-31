@@ -525,7 +525,7 @@ class TelegramBotHandler:
             await update.message.reply_text(
                 f"📰 Найдено {len(unsent)} новых статей. Загружаю картинки..."
             )
-            unsent = parser.enrich_with_og_images(unsent[:10])  # Limit to avoid slowdown
+            unsent = parser.enrich_with_og_images(unsent[:25])  # Increased limit for better coverage
 
             await update.message.reply_text("🎨 Генерирую посты...")
 

@@ -77,13 +77,6 @@
     "comment": "Технические статьи про AI"
   },
   {
-    "name": "Ben's Bites",
-    "url": "https://rss.beehiiv.com/feeds/6RP9sQV5xC.xml",
-    "enabled": true,
-    "priority": 2,
-    "comment": "Популярная AI-рассылка"
-  },
-  {
     "name": "Habr ML",
     "url": "https://habr.com/ru/rss/hub/machine_learning/all/?fl=ru",
     "enabled": true,
@@ -91,17 +84,66 @@
     "comment": "Русскоязычные статьи про ML/AI"
   },
   {
-    "name": "VC.ru AI",
-    "url": "https://vc.ru/rss/ai",
-    "enabled": true,
-    "priority": 3,
-    "comment": "Русскоязычные новости AI"
-  },
-  {
     "name": "Product Hunt",
     "url": "https://www.producthunt.com/feed",
     "enabled": true,
     "priority": 3,
     "comment": "Новые AI-продукты и стартапы"
+  },
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "AI новости от TechCrunch"
+  },
+  {
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Enterprise AI новости"
+  },
+  {
+    "name": "MIT Technology Review AI",
+    "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+    "enabled": true,
+    "priority": 2,
+    "comment": "Глубокая аналитика AI"
+  },
+  {
+    "name": "AI News",
+    "url": "https://www.artificialintelligence-news.com/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Только AI новости"
+  },
+  {
+    "name": "OpenAI Blog",
+    "url": "https://openai.com/blog/rss.xml",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Официальные анонсы OpenAI"
+  },
+  {
+    "name": "Anthropic News",
+    "url": "https://www.anthropic.com/feed.xml",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Официальные анонсы Anthropic"
+  },
+  {
+    "name": "Google AI Blog",
+    "url": "https://blog.google/technology/ai/rss/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Официальные анонсы Google AI"
+  },
+  {
+    "name": "Hugging Face Blog",
+    "url": "https://huggingface.co/blog/feed.xml",
+    "enabled": true,
+    "priority": 2,
+    "comment": "Open source AI модели"
   }
 ]
