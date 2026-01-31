@@ -3,9 +3,15 @@
 import asyncio
 import json
 import os
+import re
 from typing import List, Optional
 
 import requests
+
+
+def strip_html_tags(text: str) -> str:
+    """Remove HTML tags from text for safe preview truncation."""
+    return re.sub(r'<[^>]+>', '', text)
 from requests.exceptions import ConnectionError as ReqConnectionError
 from requests.exceptions import RequestException, Timeout
 from telegram import (
@@ -420,8 +426,10 @@ class TelegramBotHandler:
 
             for post in posts:
                 # Send each post with moderation buttons
-                post_preview = post["post_text"][:500]
-                if len(post["post_text"]) > 500:
+                # Strip HTML tags to avoid unclosed tag errors when truncating
+                clean_text = strip_html_tags(post["post_text"])
+                post_preview = clean_text[:800]
+                if len(clean_text) > 800:
                     post_preview += "..."
 
                 rubric = post.get("rubric") or post.get("format", "unknown")
@@ -576,8 +584,10 @@ class TelegramBotHandler:
                         first_post = mq.get_post_by_id(post_ids[0])
 
                     if first_post:
-                        post_preview = first_post["post_text"][:500]
-                        if len(first_post["post_text"]) > 500:
+                        # Strip HTML tags to avoid unclosed tag errors when truncating
+                        clean_text = strip_html_tags(first_post["post_text"])
+                        post_preview = clean_text[:800]
+                        if len(clean_text) > 800:
                             post_preview += "..."
 
                         await update.message.reply_text(
