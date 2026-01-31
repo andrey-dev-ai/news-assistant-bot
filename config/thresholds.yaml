@@ -20,7 +20,7 @@ deduplication:
 content:
   min_length_chars: 100       # Минимальная длина оригинала
   max_length_chars: 10000     # Максимальная длина оригинала
-  max_post_length: 1500       # Максимум символов в посте
+  max_post_length: 900        # Максимум символов в посте (Telegram caption limit)
   min_post_length: 200        # Минимум символов в посте
 
 # Telegram

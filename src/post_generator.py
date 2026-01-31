@@ -347,7 +347,7 @@ FALLBACK:
         Uses Sonnet for quality.
 
         Note: post_format is kept for backward compatibility but not used.
-        All posts now use the same universal format (1000-1500 chars).
+        All posts now use the same universal format (700-900 chars).
         """
         prompt = self._get_universal_prompt(article)
 
@@ -427,7 +427,7 @@ FALLBACK:
 - Эмодзи: 1-2 штуки, только в заголовке
 - Обращение: нейтральное или на "вы"
 - Ссылки ВНУТРИ текста, не в конце
-- Длина: 1000-1500 символов (это важно!)
+- Длина: 700-900 символов (это важно для Telegram caption!)
 
 СТРУКТУРА ПОСТА:
 ```
@@ -464,7 +464,7 @@ FALLBACK:
 Ссылка: {article_link}
 
 Ответ ТОЛЬКО JSON без markdown блоков:
-{{"text": "готовый пост с HTML-разметкой, 1000-1500 символов", "image_prompt": "DALL-E prompt in English, tech illustration style, modern, clean, 40 words max"}}"""
+{{"text": "готовый пост с HTML-разметкой, 700-900 символов", "image_prompt": "DALL-E prompt in English, tech illustration style, modern, clean, 40 words max"}}"""
 
 
     def generate_post_for_rubric(
@@ -516,7 +516,7 @@ FALLBACK:
 ПРАВИЛА:
 - Используй HTML-разметку Telegram: <b>, <i>, <a href="">
 - Ссылки встраивай в текст
-- Длина: 800-1200 символов
+- Длина: 700-900 символов
 - Замени [URL] на реальную ссылку: {article_link}
 
 Ответ ТОЛЬКО JSON:
