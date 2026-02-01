@@ -94,7 +94,7 @@ class TelegramSender:
 
     def _send_to_chat(
         self, chat_id: str, text: str, parse_mode: str = "HTML", disable_preview: bool = True
-    ) -> None:
+    ) -> dict:
         """Send message to any chat (user or channel)."""
         data = {
             "chat_id": chat_id,
@@ -102,7 +102,7 @@ class TelegramSender:
             "parse_mode": parse_mode,
             "disable_web_page_preview": disable_preview,
         }
-        self._make_request("sendMessage", data)
+        return self._make_request("sendMessage", data)
 
     def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
         """Send message to user via HTTP API."""
@@ -120,7 +120,7 @@ class TelegramSender:
             logger.error(f"Error sending message: {e}")
             return False
 
-    def send_to_channel(self, text: str, parse_mode: str = "HTML") -> bool:
+    def send_to_channel(self, text: str, parse_mode: str = "HTML") -> Optional[int]:
         """
         Send message to Telegram channel.
 
@@ -129,25 +129,28 @@ class TelegramSender:
             parse_mode: Message parse mode
 
         Returns:
-            True if message was sent successfully
+            Message ID if sent successfully, None otherwise
         """
         if not self.channel_id:
             logger.error("TELEGRAM_CHANNEL_ID not configured")
-            return False
+            return None
 
         try:
             if len(text) > 4000:
                 chunks = self._split_message(text, max_length=4000)
+                result = None
                 for chunk in chunks:
-                    self._send_to_chat(self.channel_id, chunk, parse_mode)
+                    result = self._send_to_chat(self.channel_id, chunk, parse_mode)
+                message_id = result.get("result", {}).get("message_id") if result else None
             else:
-                self._send_to_chat(self.channel_id, text, parse_mode)
+                result = self._send_to_chat(self.channel_id, text, parse_mode)
+                message_id = result.get("result", {}).get("message_id")
 
-            logger.info(f"Message sent to channel {self.channel_id}")
-            return True
+            logger.info(f"Message sent to channel {self.channel_id}, message_id={message_id}")
+            return message_id
         except Exception as e:
             logger.error(f"Error sending to channel: {e}")
-            return False
+            return None
 
     @retry(
         stop=stop_after_attempt(3),
@@ -195,7 +198,7 @@ class TelegramSender:
 
     def send_photo_to_channel(
         self, photo_path: str, caption: str, parse_mode: str = "HTML"
-    ) -> bool:
+    ) -> Optional[int]:
         """
         Send photo with caption to Telegram channel.
 
@@ -205,22 +208,23 @@ class TelegramSender:
             parse_mode: Parse mode for caption
 
         Returns:
-            True if photo was sent successfully
+            Message ID if sent successfully, None otherwise
         """
         if not self.channel_id:
             logger.error("TELEGRAM_CHANNEL_ID not configured")
-            return False
+            return None
 
         try:
-            self._send_photo(self.channel_id, photo_path, caption, parse_mode)
-            logger.info(f"Photo sent to channel {self.channel_id}")
-            return True
+            result = self._send_photo(self.channel_id, photo_path, caption, parse_mode)
+            message_id = result.get("result", {}).get("message_id")
+            logger.info(f"Photo sent to channel {self.channel_id}, message_id={message_id}")
+            return message_id
         except FileNotFoundError:
             logger.error(f"Photo file not found: {photo_path}")
-            return False
+            return None
         except Exception as e:
             logger.error(f"Error sending photo to channel: {e}")
-            return False
+            return None
 
     def send_photo(
         self, photo_path: str, caption: str, parse_mode: str = "HTML"
@@ -765,6 +769,16 @@ class TelegramBotHandler:
             return
 
         try:
+            # Show analytics first
+            try:
+                from analytics import Analytics
+                analytics = Analytics()
+                analytics_msg = analytics.format_stats_message(days=7)
+                await update.message.reply_text(analytics_msg, parse_mode="HTML")
+            except Exception as e:
+                logger.warning(f"Analytics not available: {e}")
+
+            # Then show monitoring stats
             from monitoring import get_monitor
 
             monitor = get_monitor()
@@ -921,14 +935,25 @@ class TelegramBotHandler:
             # Send to channel
             sender = TelegramSender()
             if image_path:
-                success = sender.send_photo_to_channel(
+                message_id = sender.send_photo_to_channel(
                     image_path, post["post_text"], parse_mode="HTML"
                 )
             else:
-                success = sender.send_to_channel(post["post_text"], parse_mode="HTML")
+                message_id = sender.send_to_channel(post["post_text"], parse_mode="HTML")
 
-            if success:
+            if message_id:
                 mq.mark_published(post_id)
+                # Record in analytics
+                try:
+                    from analytics import Analytics
+                    analytics = Analytics()
+                    analytics.record_publication(
+                        post_id=post_id,
+                        message_id=message_id,
+                        channel_id=sender.channel_id,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to record analytics: {e}")
                 await query.edit_message_text(
                     f"✅ Пост #{post_id} опубликован в канал!"
                 )
