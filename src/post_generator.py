@@ -35,6 +35,7 @@ def parse_classifier_response(response_text: str) -> dict:
         "relevant": False,
         "confidence": 0,
         "category": "parse_error",
+        "audience": "unknown",
         "format": "ai_tool",
         "reason": "Failed to parse LLM response",
         "needs_review": True,
@@ -64,10 +65,22 @@ def parse_classifier_response(response_text: str) -> dict:
 
         # Defaults for optional fields
         data.setdefault("category", "unknown")
+        data.setdefault("audience", "consumer")
         data.setdefault("format", "ai_tool")
         data.setdefault("reason", "")
         data.setdefault("needs_review", data["confidence"] < 70)
         data.setdefault("url_check_needed", False)
+
+        # Filter out enterprise content
+        audience = data.get("audience", "consumer").lower()
+        if audience == "enterprise":
+            data["relevant"] = False
+            data["reason"] = f"Enterprise content filtered: {data.get('reason', '')}"
+            logger.info(f"Filtered enterprise content: {data.get('reason', '')[:50]}")
+        elif audience == "mixed":
+            # Lower confidence for mixed audience
+            data["confidence"] = max(0, data["confidence"] - 10)
+            data["needs_review"] = True
 
         return data
 
@@ -273,42 +286,53 @@ class PostGenerator:
 
         prompt = f"""Ты — классификатор контента для Telegram-канала "AI для дома".
 
-ЦЕЛЕВАЯ АУДИТОРИЯ:
-- Все, кто интересуется AI и хочет использовать его в жизни
-- Не только технари — обычные люди тоже
-- Интересует: что нового в мире AI, какие инструменты появились, что изменилось
+ЦЕЛЕВАЯ АУДИТОРИЯ (CONSUMER):
+- Обычные люди, НЕ программисты и НЕ корпоративные клиенты
+- Используют AI для личных задач: дом, учёба, творчество, продуктивность
+- Интересует: простые инструменты, новые функции, практические советы
+- Язык: понятный, без технического жаргона
 
-ВКЛЮЧАТЬ (relevant: true):
-- AI-инструменты любого типа (ChatGPT, Claude, Midjourney, Runway и др.)
-- Новости AI-компаний (OpenAI, Anthropic, Google, Meta, Microsoft)
-- Обновления моделей (GPT-5, Claude 4, Gemini 2, Llama 4 и др.)
-- Тренды в AI: что меняется, куда движется индустрия
-- Интересные применения AI (кейсы, примеры использования)
-- Сравнения инструментов
-- AI в повседневной жизни
-- Новые функции в существующих сервисах
+ВКЛЮЧАТЬ (relevant: true, audience: "consumer"):
+- AI-инструменты для обычных людей (ChatGPT, Claude, Midjourney, Canva AI)
+- Новости AI-компаний с практической пользой для пользователей
+- Обновления моделей если это влияет на пользователей (новые функции, доступность)
+- AI для дома, быта, учёбы, творчества, здоровья
+- Бесплатные и доступные инструменты
+- Сравнения для обычных пользователей
+- Мобильные AI-приложения
+- Голосовые ассистенты, умный дом
 
-ИСКЛЮЧАТЬ (relevant: false):
-- Чисто техническая документация (API docs, SDK reference)
-- Код, туториалы для программистов
-- Только финансовые новости (инвестиции без продукта/функции)
-- Статьи старше 7 дней (проверь дату если указана)
-- Криптовалюта, NFT, blockchain (если не связано с AI)
-- Научные статьи без практической пользы
-- Вакансии, найм
+ИСКЛЮЧАТЬ (relevant: false) — ENTERPRISE/B2B контент:
+- Решения для бизнеса: "enterprise", "B2B", "corporate", "business solution"
+- Инфраструктура: "deployment", "infrastructure", "cloud", "MLOps", "kubernetes"
+- Разработка: API, SDK, framework, library, open-source (для разработчиков)
+- Научные статьи: arxiv, research paper, benchmark, model architecture
+- Финансы без продукта: "raises $X", "funding round", "valuation"
+- HR/найм: "hiring", "joins", "appointed"
+- Security/compliance: "SOC2", "HIPAA", "enterprise security"
+- Аналитика рынка: "market share", "industry report"
+- Партнёрства B2B: "partnership with [enterprise company]"
+
+ПРИМЕРЫ:
+✅ "ChatGPT can now edit images" → consumer, практично
+✅ "New free AI tool for photo editing" → consumer, бесплатно
+✅ "Claude теперь доступен в мобильном приложении" → consumer
+❌ "OpenAI launches enterprise API tier" → enterprise
+❌ "New ML framework for developers" → developer
+❌ "Anthropic raises $2B at $15B valuation" → finance only
+❌ "AWS announces AI infrastructure updates" → enterprise
+❌ "How to fine-tune LLaMA with LoRA" → developer
 
 EDGE-CASES:
-- "OpenAI raises $10B" → ИСКЛЮЧИТЬ (только финансы)
-- "OpenAI launches new feature" → ВКЛЮЧИТЬ
-- "How to build AI agent" (для разработчиков) → ИСКЛЮЧИТЬ
-- "Best AI tools for 2025" → ВКЛЮЧИТЬ
-- "New Claude model" → ВКЛЮЧИТЬ
-- Пустое описание → снизь confidence на 20
+- Новая модель (GPT-5, Claude 4) → ВКЛЮЧИТЬ если про функции для пользователей
+- Новое API → ИСКЛЮЧИТЬ (для разработчиков)
+- Цены упали → ВКЛЮЧИТЬ если для consumer
+- Научный прорыв → ВКЛЮЧИТЬ только если практическое применение понятно
 
 FALLBACK:
-- Не уверен → confidence < 70
-- На грани → relevant: true, confidence: 55-65, needs_review: true
-- Нет категории → category: "news"
+- Сомневаешься в аудитории → audience: "mixed", снизь confidence на 15
+- Непонятно enterprise или consumer → needs_review: true
+- Пустое описание → confidence -= 20
 
 СТАТЬЯ:
 Заголовок: {title}
@@ -317,13 +341,14 @@ FALLBACK:
 Ссылка: {article.get('link', '')}
 
 Определи:
-1. Релевантна ли статья?
+1. Релевантна для CONSUMER аудитории?
 2. Уверенность (0-100)
 3. Категория (tool/news/update/trend/comparison/tip)
-4. Причина (кратко на русском)
+4. Аудитория (consumer/enterprise/mixed)
+5. Причина (кратко на русском)
 
 Ответь ТОЛЬКО валидным JSON без markdown:
-{{"relevant": true/false, "confidence": 0-100, "category": "...", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
+{{"relevant": true/false, "confidence": 0-100, "category": "...", "audience": "consumer/enterprise/mixed", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
 
         try:
             response = self._call_api(self.haiku_model, prompt, max_tokens=250)
