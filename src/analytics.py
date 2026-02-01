@@ -1,5 +1,6 @@
 """Analytics module for tracking post performance."""
 
+import random
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,11 +35,17 @@ class Analytics:
                     reactions INTEGER DEFAULT 0,
                     comments INTEGER DEFAULT 0,
                     clicks INTEGER DEFAULT 0,
+                    ab_group TEXT DEFAULT 'A',
                     published_at DATETIME,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(post_id)
                 )
             """)
+            # Migration: add ab_group column if not exists
+            try:
+                conn.execute("ALTER TABLE post_stats ADD COLUMN ab_group TEXT DEFAULT 'A'")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_post_stats_message
                 ON post_stats(message_id)
@@ -76,6 +83,7 @@ class Analytics:
         message_id: int,
         channel_id: str,
         published_at: datetime = None,
+        ab_group: str = None,
     ) -> bool:
         """
         Record a post publication for tracking.
@@ -85,6 +93,7 @@ class Analytics:
             message_id: Telegram message ID in channel
             channel_id: Telegram channel ID
             published_at: Publication timestamp
+            ab_group: A/B test group (A or B), auto-assigned if None
 
         Returns:
             True if recorded successfully
@@ -92,18 +101,22 @@ class Analytics:
         if published_at is None:
             published_at = datetime.now()
 
+        # Auto-assign A/B group (50/50 split)
+        if ab_group is None:
+            ab_group = random.choice(["A", "B"])
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO post_stats
-                    (post_id, message_id, channel_id, published_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    (post_id, message_id, channel_id, ab_group, published_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (post_id, message_id, channel_id, published_at.isoformat(), datetime.now().isoformat()),
+                    (post_id, message_id, channel_id, ab_group, published_at.isoformat(), datetime.now().isoformat()),
                 )
                 conn.commit()
-                logger.info(f"Recorded publication: post_id={post_id}, message_id={message_id}")
+                logger.info(f"Recorded publication: post_id={post_id}, message_id={message_id}, ab_group={ab_group}")
                 return True
         except Exception as e:
             logger.error(f"Error recording publication: {e}")
@@ -339,6 +352,98 @@ class Analytics:
                 day_stats["err"] = round(engagement / views * 100, 2) if views > 0 else 0
                 result.append(day_stats)
             return result
+
+    def get_ab_comparison(self, days: int = 30) -> Dict:
+        """
+        Compare A/B test groups performance.
+
+        Args:
+            days: Period to analyze
+
+        Returns:
+            Dict with comparison metrics for each group
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            results = {}
+
+            for group in ["A", "B"]:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*) as posts,
+                        COALESCE(SUM(views), 0) as total_views,
+                        COALESCE(SUM(forwards), 0) as total_forwards,
+                        COALESCE(SUM(reactions), 0) as total_reactions,
+                        COALESCE(AVG(views), 0) as avg_views,
+                        COALESCE(AVG(forwards), 0) as avg_forwards,
+                        COALESCE(AVG(reactions), 0) as avg_reactions
+                    FROM post_stats
+                    WHERE ab_group = ?
+                    AND published_at > datetime('now', '-' || ? || ' days')
+                    """,
+                    (group, days),
+                )
+                row = cursor.fetchone()
+
+                total_views = row[1] or 0
+                total_engagement = (row[2] or 0) + (row[3] or 0)
+                avg_err = round(total_engagement / total_views * 100, 2) if total_views > 0 else 0
+
+                results[group] = {
+                    "posts": row[0] or 0,
+                    "total_views": total_views,
+                    "total_forwards": row[2] or 0,
+                    "total_reactions": row[3] or 0,
+                    "avg_views": round(row[4] or 0, 1),
+                    "avg_forwards": round(row[5] or 0, 2),
+                    "avg_reactions": round(row[6] or 0, 2),
+                    "avg_err": avg_err,
+                }
+
+            # Calculate winner
+            if results["A"]["avg_err"] > results["B"]["avg_err"]:
+                winner = "A"
+                diff = results["A"]["avg_err"] - results["B"]["avg_err"]
+            elif results["B"]["avg_err"] > results["A"]["avg_err"]:
+                winner = "B"
+                diff = results["B"]["avg_err"] - results["A"]["avg_err"]
+            else:
+                winner = "tie"
+                diff = 0
+
+            return {
+                "period_days": days,
+                "groups": results,
+                "winner": winner,
+                "err_difference": round(diff, 2),
+            }
+
+    def format_ab_comparison_message(self, days: int = 30) -> str:
+        """Format A/B comparison as Telegram message."""
+        data = self.get_ab_comparison(days)
+        groups = data["groups"]
+
+        lines = [
+            f"🔬 <b>A/B тест за {days} дней</b>",
+            "",
+        ]
+
+        for group_name in ["A", "B"]:
+            g = groups[group_name]
+            lines.extend([
+                f"<b>Группа {group_name}:</b>",
+                f"  📝 Постов: {g['posts']}",
+                f"  👁 Avg views: {g['avg_views']:.0f}",
+                f"  📈 Avg ERR: {g['avg_err']}%",
+                "",
+            ])
+
+        if data["winner"] != "tie":
+            lines.append(f"🏆 Лидер: группа <b>{data['winner']}</b> (+{data['err_difference']}% ERR)")
+        else:
+            lines.append("🤝 Результаты одинаковые")
+
+        return "\n".join(lines)
 
     def update_daily_metrics(self, date: str = None, subscribers: int = None) -> bool:
         """

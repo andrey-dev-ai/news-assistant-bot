@@ -775,6 +775,10 @@ class TelegramBotHandler:
                 analytics = Analytics()
                 analytics_msg = analytics.format_stats_message(days=7)
                 await update.message.reply_text(analytics_msg, parse_mode="HTML")
+
+                # Show A/B comparison
+                ab_msg = analytics.format_ab_comparison_message(days=30)
+                await update.message.reply_text(ab_msg, parse_mode="HTML")
             except Exception as e:
                 logger.warning(f"Analytics not available: {e}")
 
