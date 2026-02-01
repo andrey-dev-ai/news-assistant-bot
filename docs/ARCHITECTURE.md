@@ -43,7 +43,7 @@ news-assistant-bot/
 │   └── rubrics.py          # 10 рубрик контента
 │
 ├── config/
-│   ├── rss_feeds.json      # 15 RSS источников
+│   ├── rss_feeds.json      # 21 RSS источник
 │   ├── prompts.yaml        # Шаблоны промптов + image_templates
 │   └── content_plan.yaml   # Недельное расписание
 │
@@ -57,7 +57,7 @@ news-assistant-bot/
 │
 ├── docs/                   # Документация
 │   ├── ARCHITECTURE.md     # ← Этот файл
-│   ├── PHASE3-PLAN.md      # План контент-стратегии
+│   ├── STATUS.md           # Текущий статус и TODO
 │   ├── content_strategy.md # 9 рубрик, 20 готовых постов
 │   └── monetization.md     # Монетизация
 │
@@ -261,7 +261,7 @@ def publish_scheduled_post():
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        08:00 MSK                                │
-│  RSS Feeds (15 источников) → RSSParser.fetch_recent_news()      │
+│  RSS Feeds (21 источник) → RSSParser.fetch_recent_news()        │
 │      ↓                                                          │
 │  OGParser.enrich_with_og_images() → Добавляем OG-картинки       │
 │      ↓                                                          │
