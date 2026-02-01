@@ -4,6 +4,38 @@
 
 ---
 
+## [3.1.0] - 2026-02-01 (Photo Integration)
+
+### Добавлено
+
+**Умный выбор изображений:**
+- ✅ `choose_image_strategy()` — если OG-картинка ≥800px, берём её; иначе генерируем
+- ✅ `check_image_quality()` — проверка размеров через PIL
+- ✅ Расширенная фильтрация иконок/логотипов (20+ паттернов)
+
+**Генерация картинок через GPT Image 1:**
+- ✅ Заменён DALL-E на GPT Image 1 (лучше качество)
+- ✅ 12 новых промптов в стиле Soft 3D
+- ✅ Категории: kitchen, kids, home, finance, planning, tool_review, news, prompt_home, lifehack, free_service, collection, digest
+
+**Стиль изображений:**
+- Soft 3D render, тёплые пастельные цвета
+- БЕЗ роботов, БЕЗ людей, БЕЗ лиц
+- Уютная атмосфера для ЦА (женщины 25-45)
+
+### Изменено
+- `config/prompts.yaml` — полностью переписаны image_templates
+- `src/og_parser.py` — добавлена проверка качества изображений
+- `src/image_generator.py` — новый метод choose_image_strategy()
+- `scheduler.py` — интеграция умного выбора картинок
+- `src/telegram_bot.py` — превью изображений в модерации
+
+### Исправлено
+- ✅ Установлен beautifulsoup4 на сервере
+- ✅ Убран параметр response_format для GPT Image 1
+
+---
+
 ## [3.0.0] - 2026-01-31 (Phase 3 — Content Strategy)
 
 ### Добавлено

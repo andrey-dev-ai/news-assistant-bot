@@ -433,9 +433,37 @@ class TelegramBotHandler:
                     post_preview += "..."
 
                 rubric = post.get("rubric") or post.get("format", "unknown")
+                image_url = post.get("image_url")
 
+                # Информация об изображении
+                if image_url:
+                    if image_url.startswith(("http://", "https://")):
+                        image_info = "🖼 Изображение: OG из источника"
+                    else:
+                        image_info = "🖼 Изображение: локальный файл"
+                elif post.get("image_prompt"):
+                    image_info = "🎨 Изображение: будет сгенерировано"
+                else:
+                    image_info = "⚠️ Без изображения"
+
+                # Если есть локальный файл изображения — отправляем как фото
+                if image_url and not image_url.startswith(("http://", "https://")):
+                    try:
+                        caption = f"<b>#{post['id']}</b> | {rubric}\n\n{post_preview[:900]}"
+                        await update.message.reply_photo(
+                            photo=open(image_url, "rb"),
+                            caption=caption,
+                            parse_mode="HTML",
+                            reply_markup=self._get_moderation_keyboard(post["id"]),
+                        )
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to send photo preview: {e}")
+
+                # Иначе отправляем текст с информацией об изображении
                 await update.message.reply_text(
-                    f"<b>#{post['id']}</b> | {rubric}\n\n"
+                    f"<b>#{post['id']}</b> | {rubric}\n"
+                    f"{image_info}\n\n"
                     f"{post_preview}",
                     parse_mode="HTML",
                     reply_markup=self._get_moderation_keyboard(post["id"]),
@@ -866,16 +894,29 @@ class TelegramBotHandler:
             # Publish immediately
             await query.edit_message_text("⏳ Публикую...")
 
-            # Get or download image
+            # Умный выбор изображения
             image_path = None
             image_url = post.get("image_url")
 
-            if image_url and image_url.startswith(("http://", "https://")):
+            # Если уже локальный путь — используем
+            if image_url and not image_url.startswith(("http://", "https://")):
+                image_path = image_url
+            else:
+                # Используем умную стратегию выбора
                 try:
-                    from og_parser import download_image
-                    image_path = download_image(image_url)
+                    from image_generator import get_image_generator
+
+                    img_generator = get_image_generator()
+                    image_path, source = img_generator.choose_image_strategy(
+                        og_image_url=image_url,
+                        image_prompt=post.get("image_prompt"),
+                        category=post.get("format"),
+                        post_id=post_id
+                    )
+                    if image_path:
+                        logger.info(f"Image for post {post_id}: {source}")
                 except Exception as e:
-                    logger.warning(f"Failed to download image: {e}")
+                    logger.warning(f"Failed to prepare image: {e}")
 
             # Send to channel
             sender = TelegramSender()

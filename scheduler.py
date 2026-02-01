@@ -250,40 +250,31 @@ def publish_scheduled_post():
 
         logger.info(f"Publishing post {post['id']}: {post.get('format', 'unknown')}")
 
-        # Get or prepare image
+        # Умный выбор изображения: OG если качественное, иначе генерация
         image_path = None
         image_url = post.get("image_url")
 
-        # Step 1: If we have OG/RSS image URL - download it
-        if image_url and image_url.startswith(("http://", "https://")):
-            try:
-                from og_parser import download_image
-                image_path = download_image(image_url)
-                if image_path:
-                    queue.update_image_url(post["id"], image_path)
-                    logger.info(f"Downloaded OG image for post {post['id']}: {image_path}")
-            except Exception as e:
-                logger.warning(f"Failed to download OG image for post {post['id']}: {e}")
-        elif image_url:
-            # Already a local path
+        # Если уже есть локальный путь — используем его
+        if image_url and not image_url.startswith(("http://", "https://")):
             image_path = image_url
-
-        # Step 2: If still no image but have prompt - generate via AI
-        if not image_path and post.get("image_prompt"):
+        else:
+            # Используем умную стратегию выбора
             try:
                 from image_generator import get_image_generator
 
-                generator = get_image_generator()
-                image_path = generator.generate_for_post(
-                    post_id=post["id"],
-                    image_prompt=post["image_prompt"],
+                img_generator = get_image_generator()
+                image_path, source = img_generator.choose_image_strategy(
+                    og_image_url=image_url,
+                    image_prompt=post.get("image_prompt"),
                     category=post.get("format"),
+                    post_id=post["id"]
                 )
+
                 if image_path:
                     queue.update_image_url(post["id"], image_path)
-                    logger.info(f"Generated AI image for post {post['id']}: {image_path}")
+                    logger.info(f"Image ready for post {post['id']}: {source} -> {image_path}")
             except Exception as e:
-                logger.warning(f"Failed to generate AI image for post {post['id']}: {e}")
+                logger.warning(f"Failed to prepare image for post {post['id']}: {e}")
                 # Continue without image
 
         # Send to channel

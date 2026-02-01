@@ -3,11 +3,13 @@
 import os
 import re
 import tempfile
+from io import BytesIO
 from typing import Dict, Optional
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from PIL import Image
 
 from logger import get_logger
 
@@ -19,9 +21,9 @@ HEADERS = {
                   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Minimum image dimensions (to filter out icons/logos)
-MIN_WIDTH = 400
-MIN_HEIGHT = 300
+# Minimum image dimensions for quality check
+MIN_WIDTH = 800
+MIN_HEIGHT = 600
 
 
 def fetch_og_image(url: str, timeout: int = 10) -> Optional[str]:
@@ -87,12 +89,74 @@ def fetch_og_image(url: str, timeout: int = 10) -> Optional[str]:
 def _is_icon_or_logo(url: str) -> bool:
     """Check if URL is likely an icon or logo (not a real article image)."""
     url_lower = url.lower()
-    icon_patterns = [
+    bad_patterns = [
         "logo", "icon", "favicon", "avatar", "badge",
         "sprite", "button", "ad-", "banner", "pixel",
-        ".svg", "1x1", "tracking"
+        ".svg", "1x1", "tracking", "placeholder",
+        "default", "og-default", "social-default",
+        "no-image", "noimage", "missing", "blank",
+        "thumb_", "_thumb", "thumbnail", "mini",
+        "gravatar", "profile", "user-avatar"
     ]
-    return any(pattern in url_lower for pattern in icon_patterns)
+    return any(pattern in url_lower for pattern in bad_patterns)
+
+
+def check_image_quality(image_url: str, min_width: int = 800, min_height: int = 600) -> dict:
+    """
+    Проверить качество изображения по URL.
+
+    Args:
+        image_url: URL изображения
+        min_width: Минимальная ширина (по умолчанию 800px)
+        min_height: Минимальная высота (по умолчанию 600px)
+
+    Returns:
+        {"is_valid": bool, "width": int, "height": int, "reason": str}
+    """
+    if not image_url:
+        return {"is_valid": False, "reason": "No image URL provided"}
+
+    try:
+        response = requests.get(image_url, headers=HEADERS, timeout=10, stream=True)
+        response.raise_for_status()
+
+        # Проверка размера файла (не больше 10MB)
+        content_length = int(response.headers.get('content-length', 0))
+        if content_length > 10 * 1024 * 1024:
+            return {"is_valid": False, "reason": "File too large (>10MB)"}
+
+        # Загружаем и проверяем размеры
+        img_data = BytesIO(response.content)
+        img = Image.open(img_data)
+        width, height = img.size
+
+        if width < min_width:
+            return {
+                "is_valid": False, "width": width, "height": height,
+                "reason": f"Width {width}px < {min_width}px minimum"
+            }
+
+        if height < min_height:
+            return {
+                "is_valid": False, "width": width, "height": height,
+                "reason": f"Height {height}px < {min_height}px minimum"
+            }
+
+        # Проверка соотношения сторон (не слишком узкие/длинные)
+        aspect_ratio = width / height
+        if aspect_ratio > 3 or aspect_ratio < 0.33:
+            return {
+                "is_valid": False, "width": width, "height": height,
+                "reason": f"Bad aspect ratio: {aspect_ratio:.2f}"
+            }
+
+        logger.debug(f"Image quality OK: {width}x{height}")
+        return {"is_valid": True, "width": width, "height": height}
+
+    except requests.RequestException as e:
+        return {"is_valid": False, "reason": f"Request failed: {e}"}
+    except Exception as e:
+        return {"is_valid": False, "reason": f"Error: {e}"}
 
 
 def download_image(image_url: str, save_dir: str = None, timeout: int = 15) -> Optional[str]:

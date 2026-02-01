@@ -510,41 +510,99 @@ rubric_prompts:
       - Ссылки на посты канала если возможно
 
 # ============================================
-# GPT Image 1 Mini — промпты по категориям
-# (модель gpt-image-1-mini, quality: medium)
+# GPT Image 1 — промпты по категориям
+# Стиль: Soft 3D render, тёплые пастельные цвета
+# БЕЗ роботов, БЕЗ людей и лиц
 # ============================================
 image_templates:
+  base_style: |
+    Style: Soft 3D render, modern minimalist aesthetic.
+    Colors: Warm pastels — cream white, soft peach, sage green, dusty rose, light blue.
+    Mood: Cozy, approachable, professional.
+    Lighting: Soft ambient light, gentle shadows.
+    Technical: No text, no watermarks, no people, no faces.
+    Format: Square 1024x1024, centered composition.
+
   kitchen: |
-    Flat vector illustration for Telegram channel about AI for home cooking.
-    Scene: Warm, modern kitchen with a friendly cartoon robot assistant helping a woman prepare food. The robot has a chef's hat and is holding a wooden spoon. On the counter: fresh vegetables, a tablet showing a recipe.
-    Style: Clean minimalist Scandinavian design, soft pastel colors (peach, mint green, cream white, soft coral).
-    Mood: Cozy, helpful, approachable.
-    Technical: No text, no watermarks. Square format 1024x1024. Simple shapes, limited color palette.
+    A cozy kitchen scene in soft 3D style.
+    Scene: Modern kitchen counter with fresh ingredients — colorful vegetables, herbs in pots, a wooden cutting board. A tablet or smartphone showing a recipe app with a friendly AI assistant icon on screen. Steam rising from a cooking pot.
+    Style: Soft 3D render, warm pastels — cream, peach, sage green. Warm ambient lighting like morning sun through a window.
+    Mood: Inviting, helpful, homey.
+    Technical: No text, no people, no faces. Square 1024x1024.
 
   kids: |
-    Flat vector illustration for Telegram channel about AI for parenting and education.
-    Scene: Cozy living room corner with a child (gender-neutral, age 6-8) sitting on a bean bag, looking at a tablet together with a small friendly robot. The robot has round eyes and is pointing at something on the screen. Books and toys in the background.
-    Style: Warm, nurturing atmosphere. Soft colors: lavender, soft yellow, light blue, warm white.
-    Mood: Safe, educational, playful.
-    Technical: No text, no faces in detail, no specific characters. Square 1024x1024.
+    A playful learning corner in soft 3D style.
+    Scene: Cozy reading nook with colorful books, building blocks, a tablet showing an educational app with friendly cartoon characters. Soft plush toys, a small chalkboard with doodles.
+    Style: Soft 3D render, playful pastels — lavender, soft yellow, mint green, baby blue.
+    Mood: Safe, nurturing, fun, educational.
+    Technical: No children, no people, no faces. Square 1024x1024.
 
   home: |
-    Flat vector illustration for Telegram channel about AI for home organization.
-    Scene: Modern, tidy living room with subtle smart home elements. A small robot helper is organizing items on a shelf. Clean surfaces, plants, natural light from a window.
-    Style: Minimalist Scandinavian interior design. Colors: sage green, warm grey, cream, terracotta accents.
-    Mood: Calm, organized, achievable.
-    Technical: No text, no people. Focus on space and organization. Square 1024x1024.
+    An organized living space in soft 3D style.
+    Scene: Modern minimalist room with smart home elements — a voice assistant device, organized shelves, plants, natural light. Clean surfaces, cozy textures.
+    Style: Soft 3D render, calming pastels — sage green, warm grey, cream, terracotta accents.
+    Mood: Calm, organized, achievable, inspiring.
+    Technical: No people, no faces. Focus on space and organization. Square 1024x1024.
 
   finance: |
-    Flat vector illustration for Telegram channel about AI for personal finance.
-    Scene: Desk with a piggy bank, simple charts on paper, a smartphone showing a budget app, and a small friendly robot with a calculator. Coins and a small plant.
-    Style: Optimistic, approachable. Colors: mint green, coral, warm white, soft gold accents.
-    Mood: Positive about money, not stressful. Empowering.
-    Technical: No text, no specific currency symbols, no real app interfaces. Square 1024x1024.
+    A personal finance workspace in soft 3D style.
+    Scene: Cozy desk with a piggy bank, a smartphone showing a budget app, coins organized in stacks, a small plant, notebook with financial notes. Coffee cup nearby.
+    Style: Soft 3D render, optimistic pastels — mint green, coral, warm white, soft gold accents.
+    Mood: Positive, empowering, not stressful.
+    Technical: No people, no faces, no specific currency symbols. Square 1024x1024.
 
   planning: |
-    Flat vector illustration for Telegram channel about AI for time management and planning.
-    Scene: Clean desk with an open planner, a cup of coffee, a small friendly robot holding a pencil and checking off a to-do list. Clock on the wall showing a reasonable time (not midnight).
-    Style: Productive but calm. Colors: sky blue, peach, cream, warm grey.
-    Mood: Achievable productivity, not hustle culture. Balanced.
-    Technical: No readable text on planner, no specific time shown. Square 1024x1024.
+    A productivity workspace in soft 3D style.
+    Scene: Clean desk with an open planner, colorful sticky notes, a tablet showing a to-do app, a cup of coffee, small potted succulent. Morning light atmosphere.
+    Style: Soft 3D render, productive pastels — sky blue, peach, cream, warm grey.
+    Mood: Focused but calm, balanced, achievable productivity.
+    Technical: No people, no faces, no readable text on planner. Square 1024x1024.
+
+  tool_review: |
+    A tech showcase scene in soft 3D style.
+    Scene: Modern workspace with a laptop showing an AI interface, floating UI elements, holographic icons representing AI capabilities — chat bubbles, magic wand, lightbulb.
+    Style: Soft 3D render, tech-modern pastels — blue, purple, white, with subtle glow effects.
+    Mood: Innovative, accessible, exciting.
+    Technical: No people, no faces, no readable text. Square 1024x1024.
+
+  news: |
+    A news and updates scene in soft 3D style.
+    Scene: Abstract representation of news flow — floating newspaper elements, notification bells, speech bubbles, connected nodes representing AI networks. Digital globe in background.
+    Style: Soft 3D render, professional pastels — blue, teal, white, subtle orange accents.
+    Mood: Informative, trustworthy, current.
+    Technical: No people, no faces, no readable text. Square 1024x1024.
+
+  prompt_home: |
+    A creative prompt workspace in soft 3D style.
+    Scene: Magical desk with a glowing text box (prompt input), sparkles, lightbulbs, floating ideas as abstract shapes. A smartphone showing AI chat interface.
+    Style: Soft 3D render, creative pastels — lavender, pink, soft gold, white.
+    Mood: Creative, inspiring, magical but practical.
+    Technical: No people, no faces, no readable text. Square 1024x1024.
+
+  lifehack: |
+    A clever solution scene in soft 3D style.
+    Scene: Before-and-after visualization — messy desk transforming into organized one, with AI magic sparkles in between. Timer, checkmarks, efficiency symbols.
+    Style: Soft 3D render, achievement pastels — green, gold, white, soft orange.
+    Mood: Satisfying, clever, time-saving.
+    Technical: No people, no faces. Square 1024x1024.
+
+  free_service: |
+    A gift/free offer scene in soft 3D style.
+    Scene: Open gift box with AI tool icons floating out — chat bubbles, image icons, document icons. "Free" badge ribbon, sparkles, celebration confetti.
+    Style: Soft 3D render, generous pastels — coral, mint, gold accents, white.
+    Mood: Generous, exciting, accessible.
+    Technical: No people, no faces, no text except decorative patterns. Square 1024x1024.
+
+  collection: |
+    A curated collection scene in soft 3D style.
+    Scene: Shelf display with 5 app icons or tool cards, each with distinct color. Star ratings, bookmarks.
+    Style: Soft 3D render, organized pastels — various harmonious colors, white background.
+    Mood: Curated, helpful, comprehensive.
+    Technical: No people, no faces, no readable text. Square 1024x1024.
+
+  digest: |
+    A weekly summary scene in soft 3D style.
+    Scene: Calendar page with highlighted week, surrounded by floating summary cards, charts, key highlights as icons. Clock showing time saved.
+    Style: Soft 3D render, summary pastels — blue, green, white, subtle yellow accents.
+    Mood: Comprehensive, valuable, time-efficient.
+    Technical: No people, no faces, no readable text. Square 1024x1024.
