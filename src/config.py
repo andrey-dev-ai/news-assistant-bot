@@ -100,21 +100,27 @@ class Settings(BaseSettings):
 
     # Phase 3: Feature Flags
     use_moderation: bool = Field(
-        default=True,
+        default=False,
         alias="USE_MODERATION",
         description="Enable manual approval for posts before publishing"
     )
 
     use_rubrics: bool = Field(
-        default=False,
+        default=True,
         alias="USE_RUBRICS",
         description="Enable rubric-based post generation"
     )
 
     use_new_schedule: bool = Field(
-        default=False,
+        default=True,
         alias="USE_NEW_SCHEDULE",
-        description="Enable weekly schedule (11 posts/week instead of 5/day)"
+        description="Enable weekly schedule (7 posts/week, 1/day)"
+    )
+
+    klymo_cta: str = Field(
+        default="🤖 Автоматизация для бизнеса → @klymo_tech",
+        alias="KLYMO_CTA",
+        description="CTA text appended to posts"
     )
 
     # Content plan config

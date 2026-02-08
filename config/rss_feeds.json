@@ -1,17 +1,10 @@
 [
   {
-    "name": "One Useful Thing",
-    "url": "https://www.oneusefulthing.org/feed",
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
     "enabled": true,
     "priority": 1,
-    "comment": "Практичные советы по AI от Ethan Mollick"
-  },
-  {
-    "name": "The Rundown AI",
-    "url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml",
-    "enabled": true,
-    "priority": 1,
-    "comment": "Ежедневные новости AI простым языком"
+    "comment": "AI новости от TechCrunch"
   },
   {
     "name": "The Verge AI",
@@ -21,102 +14,11 @@
     "comment": "AI новости для широкой аудитории"
   },
   {
-    "name": "ZDNET AI",
-    "url": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
-    "enabled": true,
-    "priority": 2,
-    "comment": "Практичные статьи про AI"
-  },
-  {
-    "name": "Futurism AI",
-    "url": "https://futurism.com/categories/ai-artificial-intelligence/feed",
-    "enabled": true,
-    "priority": 2,
-    "comment": "AI новости доступным языком"
-  },
-  {
-    "name": "Synthedia",
-    "url": "https://synthedia.substack.com/feed",
-    "enabled": true,
-    "priority": 2,
-    "comment": "ChatGPT, DALL-E, генеративный AI"
-  },
-  {
-    "name": "Last Week in AI",
-    "url": "https://lastweekin.ai/feed",
-    "enabled": true,
-    "priority": 2,
-    "comment": "Еженедельные сводки AI новостей"
-  },
-  {
-    "name": "THE DECODER",
-    "url": "https://the-decoder.com/feed/",
-    "enabled": true,
-    "priority": 1,
-    "comment": "AI news, business, and research"
-  },
-  {
-    "name": "Wired AI",
-    "url": "https://www.wired.com/feed/tag/ai/latest/rss",
-    "enabled": true,
-    "priority": 2,
-    "comment": "AI и технологии от Wired"
-  },
-  {
-    "name": "The Guardian AI",
-    "url": "https://www.theguardian.com/technology/artificialintelligenceai/rss",
-    "enabled": true,
-    "priority": 3,
-    "comment": "AI новости от The Guardian"
-  },
-  {
-    "name": "Ars Technica AI",
-    "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
-    "enabled": true,
-    "priority": 3,
-    "comment": "Технические статьи про AI"
-  },
-  {
-    "name": "Habr ML",
-    "url": "https://habr.com/ru/rss/hub/machine_learning/all/?fl=ru",
-    "enabled": true,
-    "priority": 2,
-    "comment": "Русскоязычные статьи про ML/AI"
-  },
-  {
-    "name": "Product Hunt",
-    "url": "https://www.producthunt.com/feed",
-    "enabled": true,
-    "priority": 3,
-    "comment": "Новые AI-продукты и стартапы"
-  },
-  {
-    "name": "TechCrunch AI",
-    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
-    "enabled": true,
-    "priority": 1,
-    "comment": "AI новости от TechCrunch"
-  },
-  {
     "name": "VentureBeat AI",
     "url": "https://venturebeat.com/category/ai/feed/",
     "enabled": true,
     "priority": 1,
     "comment": "Enterprise AI новости"
-  },
-  {
-    "name": "MIT Technology Review AI",
-    "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
-    "enabled": true,
-    "priority": 2,
-    "comment": "Глубокая аналитика AI"
-  },
-  {
-    "name": "AI News",
-    "url": "https://www.artificialintelligence-news.com/feed/",
-    "enabled": true,
-    "priority": 1,
-    "comment": "Только AI новости"
   },
   {
     "name": "OpenAI Blog",
@@ -128,9 +30,9 @@
   {
     "name": "Anthropic News",
     "url": "https://www.anthropic.com/feed.xml",
-    "enabled": true,
+    "enabled": false,
     "priority": 1,
-    "comment": "Официальные анонсы Anthropic"
+    "comment": "DEAD FEED — 0 entries (Feb 2026)"
   },
   {
     "name": "Google AI Blog",
@@ -144,6 +46,118 @@
     "url": "https://huggingface.co/blog/feed.xml",
     "enabled": true,
     "priority": 2,
-    "comment": "Open source AI модели"
+    "comment": "Open source AI модели и инструменты"
+  },
+  {
+    "name": "THE DECODER",
+    "url": "https://the-decoder.com/feed/",
+    "enabled": false,
+    "priority": 1,
+    "comment": "DEAD FEED — 0 entries (Feb 2026)"
+  },
+  {
+    "name": "AI News",
+    "url": "https://www.artificialintelligence-news.com/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Enterprise AI новости"
+  },
+  {
+    "name": "AWS Machine Learning Blog",
+    "url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "AWS AI/ML решения для бизнеса"
+  },
+  {
+    "name": "Microsoft AI Blog",
+    "url": "https://blogs.microsoft.com/ai/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "Microsoft Copilot, Azure AI"
+  },
+  {
+    "name": "Meta AI Blog",
+    "url": "https://ai.meta.com/blog/rss/",
+    "enabled": false,
+    "priority": 2,
+    "comment": "DEAD FEED — 0 entries (Feb 2026)"
+  },
+  {
+    "name": "DeepLearning.AI The Batch",
+    "url": "https://www.deeplearning.ai/the-batch/feed/",
+    "enabled": false,
+    "priority": 1,
+    "comment": "DEAD FEED — 0 entries (Feb 2026)"
+  },
+  {
+    "name": "MarkTechPost",
+    "url": "https://www.marktechpost.com/feed/",
+    "enabled": true,
+    "priority": 2,
+    "comment": "AI research и бизнес-применения"
+  },
+  {
+    "name": "Hacker News (Best)",
+    "url": "https://hnrss.org/best",
+    "enabled": true,
+    "priority": 3,
+    "comment": "Лучшие посты HN (фильтруются классификатором)"
+  },
+  {
+    "name": "Synced Review",
+    "url": "https://syncedreview.com/feed/",
+    "enabled": true,
+    "priority": 2,
+    "comment": "AI research новости и тренды"
+  },
+  {
+    "name": "Wired AI",
+    "url": "https://www.wired.com/feed/tag/ai/latest/rss",
+    "enabled": true,
+    "priority": 1,
+    "comment": "100% картинки (454KB avg), топ AI контент"
+  },
+  {
+    "name": "InfoQ AI/ML",
+    "url": "https://feed.infoq.com/ai-ml-data-eng/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "100% картинки (243KB avg), enterprise AI, агенты, инструменты"
+  },
+  {
+    "name": "NVIDIA Blog",
+    "url": "https://blogs.nvidia.com/feed/",
+    "enabled": true,
+    "priority": 1,
+    "comment": "100% картинки (218KB avg), AI/ML, enterprise"
+  },
+  {
+    "name": "OneUsefulThing",
+    "url": "https://www.oneusefulthing.org/feed",
+    "enabled": true,
+    "priority": 1,
+    "comment": "100% картинки (293KB avg), Ethan Mollick — AI для бизнеса"
+  },
+  {
+    "name": "Ars Technica AI",
+    "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
+    "enabled": true,
+    "priority": 1,
+    "comment": "100% картинки (136KB avg), качественные AI новости"
+  },
+  {
+    "name": "SiliconANGLE",
+    "url": "https://siliconangle.com/feed/",
+    "enabled": true,
+    "priority": 2,
+    "comment": "100% картинки (957KB avg), enterprise tech, стартапы"
+  },
+  {
+    "name": "TNW (TheNextWeb)",
+    "url": "https://thenextweb.com/feed",
+    "enabled": true,
+    "priority": 2,
+    "comment": "100% картинки (77KB avg), EU tech + AI бизнес"
   }
 ]

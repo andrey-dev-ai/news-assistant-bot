@@ -120,13 +120,16 @@ class TelegramSender:
             logger.error(f"Error sending message: {e}")
             return False
 
-    def send_to_channel(self, text: str, parse_mode: str = "HTML") -> Optional[int]:
+    def send_to_channel(
+        self, text: str, parse_mode: str = "HTML", article_url: str = None
+    ) -> Optional[int]:
         """
         Send message to Telegram channel.
 
         Args:
             text: Message text
             parse_mode: Message parse mode
+            article_url: Optional URL for "Читати далі" button
 
         Returns:
             Message ID if sent successfully, None otherwise
@@ -136,14 +139,41 @@ class TelegramSender:
             return None
 
         try:
+            reply_markup = None
+            if article_url:
+                import json as _json
+                reply_markup = _json.dumps({
+                    "inline_keyboard": [[{"text": "Читати далі →", "url": article_url}]]
+                })
+
             if len(text) > 4000:
                 chunks = self._split_message(text, max_length=4000)
                 result = None
-                for chunk in chunks:
-                    result = self._send_to_chat(self.channel_id, chunk, parse_mode)
+                for i, chunk in enumerate(chunks):
+                    if i == len(chunks) - 1 and reply_markup:
+                        data = {
+                            "chat_id": self.channel_id,
+                            "text": chunk,
+                            "parse_mode": parse_mode,
+                            "disable_web_page_preview": True,
+                            "reply_markup": reply_markup,
+                        }
+                        result = self._make_request("sendMessage", data)
+                    else:
+                        result = self._send_to_chat(self.channel_id, chunk, parse_mode)
                 message_id = result.get("result", {}).get("message_id") if result else None
             else:
-                result = self._send_to_chat(self.channel_id, text, parse_mode)
+                if reply_markup:
+                    data = {
+                        "chat_id": self.channel_id,
+                        "text": text,
+                        "parse_mode": parse_mode,
+                        "disable_web_page_preview": True,
+                        "reply_markup": reply_markup,
+                    }
+                    result = self._make_request("sendMessage", data)
+                else:
+                    result = self._send_to_chat(self.channel_id, text, parse_mode)
                 message_id = result.get("result", {}).get("message_id")
 
             logger.info(f"Message sent to channel {self.channel_id}, message_id={message_id}")
@@ -162,7 +192,8 @@ class TelegramSender:
         ),
     )
     def _send_photo(
-        self, chat_id: str, photo_path: str, caption: str, parse_mode: str = "HTML"
+        self, chat_id: str, photo_path: str, caption: str,
+        parse_mode: str = "HTML", reply_markup: dict = None
     ) -> dict:
         """
         Send photo to a chat using multipart/form-data.
@@ -172,6 +203,7 @@ class TelegramSender:
             photo_path: Path to local image file
             caption: Photo caption (max 1024 chars)
             parse_mode: Parse mode for caption
+            reply_markup: Optional inline keyboard dict
 
         Returns:
             API response as dict
@@ -189,6 +221,9 @@ class TelegramSender:
                 "caption": caption,
                 "parse_mode": parse_mode,
             }
+            if reply_markup:
+                import json as _json
+                data["reply_markup"] = _json.dumps(reply_markup)
             response = requests.post(url, data=data, files=files, timeout=60)
             response.raise_for_status()
             result = response.json()
@@ -197,7 +232,8 @@ class TelegramSender:
             return result
 
     def send_photo_to_channel(
-        self, photo_path: str, caption: str, parse_mode: str = "HTML"
+        self, photo_path: str, caption: str, parse_mode: str = "HTML",
+        article_url: str = None
     ) -> Optional[int]:
         """
         Send photo with caption to Telegram channel.
@@ -206,6 +242,7 @@ class TelegramSender:
             photo_path: Path to local image file
             caption: Photo caption
             parse_mode: Parse mode for caption
+            article_url: Optional URL for "Читати далі" button
 
         Returns:
             Message ID if sent successfully, None otherwise
@@ -214,8 +251,16 @@ class TelegramSender:
             logger.error("TELEGRAM_CHANNEL_ID not configured")
             return None
 
+        reply_markup = None
+        if article_url:
+            reply_markup = {
+                "inline_keyboard": [[{"text": "Читати далі →", "url": article_url}]]
+            }
+
         try:
-            result = self._send_photo(self.channel_id, photo_path, caption, parse_mode)
+            result = self._send_photo(
+                self.channel_id, photo_path, caption, parse_mode, reply_markup
+            )
             message_id = result.get("result", {}).get("message_id")
             logger.info(f"Photo sent to channel {self.channel_id}, message_id={message_id}")
             return message_id
@@ -353,13 +398,13 @@ class TelegramBotHandler:
     ):
         """Handle /start command."""
         await update.message.reply_text(
-            "👋 Привет! Я AI News Bot (Phase 3).\n\n"
-            "Теперь каждый пост проходит модерацию перед публикацией.\n\n"
+            "👋 KLYMO AI Bot — автоматизация для бизнеса.\n\n"
+            "Генерирую 1 пост/день с бизнес-фокусом.\n"
+            "Каждый пост проходит модерацию.\n\n"
             "📋 <b>Очередь</b> — посты на модерацию\n"
             "📊 <b>Статистика</b> — метрики канала\n"
-            "🔄 <b>Обновить</b> — сгенерировать посты\n"
+            "🔄 <b>Обновить</b> — сгенерировать пост\n"
             "⚙️ <b>Настройки</b> — конфигурация\n\n"
-            "Используйте кнопки ниже или команды:\n"
             "/help — справка",
             parse_mode="HTML",
             reply_markup=self._get_main_keyboard(),
@@ -370,14 +415,15 @@ class TelegramBotHandler:
     ):
         """Handle /help command."""
         await update.message.reply_text(
-            "🤖 <b>AI News Bot - Помощь (Phase 3)</b>\n\n"
-            "<b>Кнопки клавиатуры:</b>\n"
+            "🤖 <b>KLYMO AI Bot — Помощь</b>\n\n"
+            "<b>Режим:</b> 1 пост/день, бизнес-фокус, лидген → @klymo_tech\n\n"
+            "<b>Кнопки:</b>\n"
             "📋 Очередь — посты ожидающие одобрения\n"
-            "📊 Статистика — статистика канала\n"
-            "🔄 Обновить — сгенерировать посты сейчас\n"
+            "📊 Статистика — метрики канала\n"
+            "🔄 Обновить — сгенерировать пост\n"
             "⚙️ Настройки — конфигурация бота\n\n"
             "<b>Команды:</b>\n"
-            "/generate - сгенерировать посты\n"
+            "/generate - сгенерировать пост\n"
             "/preview - посмотреть очередь\n"
             "/publish_now - опубликовать следующий пост\n"
             "/stats - статистика\n\n"
@@ -561,8 +607,8 @@ class TelegramBotHandler:
 
             await update.message.reply_text("🎨 Генерирую посты...")
 
-            # Generate posts
-            posts = generator.generate_daily_posts(unsent, count=5)
+            # Generate posts (1 per day — KLYMO Business Pivot)
+            posts = generator.generate_daily_posts(unsent, count=1)
             if not posts:
                 await update.message.reply_text("❌ Не удалось сгенерировать посты.")
                 return
@@ -631,7 +677,7 @@ class TelegramBotHandler:
                         )
             else:
                 # Legacy mode: schedule posts for auto-publishing
-                times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+                times = ["10:00"]
                 post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
 
                 for post in posts:
@@ -740,12 +786,19 @@ class TelegramBotHandler:
                     await update.message.reply_text(f"⚠️ Картинка не сгенерирована: {e}")
 
             sender = TelegramSender()
+            article_url = post.get("article_url", "")
 
             # Send with image if available (HTML for proper formatting)
             if image_path:
-                success = sender.send_photo_to_channel(image_path, post["post_text"], parse_mode="HTML")
+                success = sender.send_photo_to_channel(
+                    image_path, post["post_text"], parse_mode="HTML",
+                    article_url=article_url or None
+                )
             else:
-                success = sender.send_to_channel(post["post_text"], parse_mode="HTML")
+                success = sender.send_to_channel(
+                    post["post_text"], parse_mode="HTML",
+                    article_url=article_url or None
+                )
 
             if success:
                 queue.mark_published(post["id"])
@@ -938,12 +991,17 @@ class TelegramBotHandler:
 
             # Send to channel
             sender = TelegramSender()
+            article_url = post.get("article_url", "")
             if image_path:
                 message_id = sender.send_photo_to_channel(
-                    image_path, post["post_text"], parse_mode="HTML"
+                    image_path, post["post_text"], parse_mode="HTML",
+                    article_url=article_url or None
                 )
             else:
-                message_id = sender.send_to_channel(post["post_text"], parse_mode="HTML")
+                message_id = sender.send_to_channel(
+                    post["post_text"], parse_mode="HTML",
+                    article_url=article_url or None
+                )
 
             if message_id:
                 mq.mark_published(post_id)

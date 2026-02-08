@@ -1,6 +1,5 @@
-"""Scheduler for running bot with 5 posts per day."""
+"""Scheduler for running bot with 1 post per day (KLYMO Business Pivot)."""
 
-import os
 import signal
 import sys
 import threading
@@ -146,7 +145,7 @@ def generate_daily_posts():
 
         # Generate posts
         generator = PostGenerator()
-        posts = generator.generate_daily_posts(enriched_articles, count=5)
+        posts = generator.generate_daily_posts(enriched_articles, count=1)
 
         if not posts:
             logger.warning("No posts generated")
@@ -169,7 +168,7 @@ def generate_daily_posts():
         ]
 
         if settings.use_moderation:
-            # Phase 3: Send posts for moderation instead of scheduling
+            # Send posts for moderation instead of scheduling
             post_ids = []
             for post_dict in post_dicts:
                 post_id = queue.add_post(
@@ -195,8 +194,8 @@ def generate_daily_posts():
             except Exception as e:
                 logger.warning(f"Failed to send notification: {e}")
         else:
-            # Legacy mode: schedule posts for auto-publishing
-            times = ["09:00", "12:00", "15:00", "18:00", "21:00"]
+            # Auto-publishing at 10:00
+            times = ["10:00"]
             post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
             logger.info(f"Scheduled {len(post_ids)} posts for today")
 
@@ -340,28 +339,18 @@ def send_digest():
 
 
 def run_scheduler():
-    """Run the scheduler with 5 posts per day."""
+    """Run the scheduler with 1 post per day."""
     load_dotenv()
     logger = get_logger("news_bot.scheduler")
     shutdown = get_shutdown_handler()
 
-    # Get publish times from env or use defaults
-    publish_times = os.getenv("PUBLISH_TIMES", "09:00,12:00,15:00,18:00,21:00")
-    times = [t.strip() for t in publish_times.split(",")]
-
-    # Schedule daily post generation at 08:00 (before first publish)
+    # Schedule daily post generation at 08:00
     schedule.every().day.at("08:00").do(generate_daily_posts)
     logger.info("Scheduled daily post generation at 08:00")
 
-    # Schedule publishing at each time
-    for time_str in times:
-        schedule.every().day.at(time_str).do(publish_scheduled_post)
-        logger.info(f"Scheduled post publishing at {time_str}")
-
-    # Also check for pending posts every 5 minutes
-    # (in case of restarts or missed schedules)
-    schedule.every(5).minutes.do(publish_scheduled_post)
-    logger.info("Scheduled pending post check every 5 minutes")
+    # Schedule publishing at 10:00
+    schedule.every().day.at("10:00").do(publish_scheduled_post)
+    logger.info("Scheduled post publishing at 10:00")
 
     while not shutdown.should_shutdown():
         schedule.run_pending()
@@ -398,7 +387,7 @@ def main():
     shutdown.register_handlers()
 
     logger.info("=" * 50)
-    logger.info("AI News Bot Started (Phase 3)")
+    logger.info("AI News Bot Started (KLYMO Business Pivot)")
     logger.info(f"  Moderation: {'ON' if settings.use_moderation else 'OFF'}")
     logger.info(f"  Rubrics: {'ON' if settings.use_rubrics else 'OFF'}")
     logger.info(f"  New Schedule: {'ON' if settings.use_new_schedule else 'OFF'}")

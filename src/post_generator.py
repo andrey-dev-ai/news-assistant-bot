@@ -71,12 +71,12 @@ def parse_classifier_response(response_text: str) -> dict:
         data.setdefault("needs_review", data["confidence"] < 70)
         data.setdefault("url_check_needed", False)
 
-        # Filter out enterprise content
+        # Filter out consumer content (KLYMO Business Pivot: enterprise = pass, consumer = filtered)
         audience = data.get("audience", "consumer").lower()
-        if audience == "enterprise":
+        if audience == "consumer":
             data["relevant"] = False
-            data["reason"] = f"Enterprise content filtered: {data.get('reason', '')}"
-            logger.info(f"Filtered enterprise content: {data.get('reason', '')[:50]}")
+            data["reason"] = f"Consumer content filtered: {data.get('reason', '')}"
+            logger.info(f"Filtered consumer content: {data.get('reason', '')[:50]}")
         elif audience == "mixed":
             # Lower confidence for mixed audience
             data["confidence"] = max(0, data["confidence"] - 10)
@@ -218,12 +218,14 @@ def get_image_for_post(article: Dict, image_prompt: str = None) -> Tuple[Optiona
 
 
 class PostFormat(Enum):
-    """Types of posts for the channel."""
-    AI_TOOL = "ai_tool"          # AI-находка дня
-    QUICK_TIP = "quick_tip"      # Быстрый совет
-    PROMPT_DAY = "prompt_day"    # Промт дня
-    COMPARISON = "comparison"    # Сравнение
-    CHECKLIST = "checklist"      # Чек-лист
+    """Types of posts for the channel (KLYMO Business Pivot)."""
+    AI_NEWS = "ai_news"                # 🔥 AI-новость
+    TOOL_REVIEW = "tool_review"        # 🛠 Инструмент дня
+    CASE_STUDY = "case_study"          # 💰 Кейс автоматизации
+    AI_VS_MANUAL = "ai_vs_manual"      # 📊 AI vs ручная работа
+    BUSINESS_PROMPT = "business_prompt" # 🎯 Промпт для бизнеса
+    AI_EXPLAINER = "ai_explainer"      # 🧠 AI-ликбез
+    WEEKLY_DIGEST = "weekly_digest"    # ⚡ Дайджест недели
 
 
 @dataclass
@@ -284,54 +286,44 @@ class PostGenerator:
         title = article.get("title", "")
         description = article.get("summary", "")[:500]
 
-        prompt = f"""Ты — классификатор контента для Telegram-канала "AI для дома".
+        prompt = f"""Ты — классификатор контента для Telegram-канала "AI для бизнеса" (лидген для KLYMO).
 
-ЦЕЛЕВАЯ АУДИТОРИЯ (CONSUMER):
-- Обычные люди, НЕ программисты и НЕ корпоративные клиенты
-- Используют AI для личных задач: дом, учёба, творчество, продуктивность
-- Интересует: простые инструменты, новые функции, практические советы
-- Язык: понятный, без технического жаргона
+ЦЕЛЕВАЯ АУДИТОРИЯ (BUSINESS):
+- Предприниматели, владельцы SMB, C-level
+- Интересует: AI-автоматизация, ROI, инструменты для бизнеса, кейсы внедрения
+- Язык: экспертный, но без академизма
 
-ВКЛЮЧАТЬ (relevant: true, audience: "consumer"):
-- AI-инструменты для обычных людей (ChatGPT, Claude, Midjourney, Canva AI)
-- Новости AI-компаний с практической пользой для пользователей
-- Обновления моделей если это влияет на пользователей (новые функции, доступность)
-- AI для дома, быта, учёбы, творчества, здоровья
-- Бесплатные и доступные инструменты
-- Сравнения для обычных пользователей
-- Мобильные AI-приложения
-- Голосовые ассистенты, умный дом
+ВКЛЮЧАТЬ (relevant: true, audience: "business" или "enterprise"):
+- AI-инструменты для автоматизации бизнес-процессов
+- Enterprise-решения: CRM, маркетинг, аналитика, workflow
+- Кейсы внедрения AI с измеримыми результатами
+- Обновления от OpenAI, Anthropic, Google, Microsoft, Meta (бизнес-фокус)
+- AI-тренды влияющие на бизнес-стратегию
+- Инструменты для продуктивности команд
+- API и платформы для бизнеса (no-code, low-code)
 
-ИСКЛЮЧАТЬ (relevant: false) — ENTERPRISE/B2B контент:
-- Решения для бизнеса: "enterprise", "B2B", "corporate", "business solution"
-- Инфраструктура: "deployment", "infrastructure", "cloud", "MLOps", "kubernetes"
-- Разработка: API, SDK, framework, library, open-source (для разработчиков)
-- Научные статьи: arxiv, research paper, benchmark, model architecture
-- Финансы без продукта: "raises $X", "funding round", "valuation"
-- HR/найм: "hiring", "joins", "appointed"
-- Security/compliance: "SOC2", "HIPAA", "enterprise security"
-- Аналитика рынка: "market share", "industry report"
-- Партнёрства B2B: "partnership with [enterprise company]"
+ИСКЛЮЧАТЬ (relevant: false) — CONSUMER контент:
+- AI для дома, быта, хобби, развлечений
+- Генерация мемов, фильтры, игры
+- Мобильные AI-приложения для потребителей
+- Бытовые советы, кулинария, детские приложения
+- "10 способов использовать ChatGPT для учёбы"
+- Научные статьи без практического бизнес-применения
+- HR/найм без AI-автоматизации
+- Чистый funding без продукта: "raises $X" (если нет описания продукта)
 
 ПРИМЕРЫ:
-✅ "ChatGPT can now edit images" → consumer, практично
-✅ "New free AI tool for photo editing" → consumer, бесплатно
-✅ "Claude теперь доступен в мобильном приложении" → consumer
-❌ "OpenAI launches enterprise API tier" → enterprise
-❌ "New ML framework for developers" → developer
-❌ "Anthropic raises $2B at $15B valuation" → finance only
-❌ "AWS announces AI infrastructure updates" → enterprise
-❌ "How to fine-tune LLaMA with LoRA" → developer
-
-EDGE-CASES:
-- Новая модель (GPT-5, Claude 4) → ВКЛЮЧИТЬ если про функции для пользователей
-- Новое API → ИСКЛЮЧИТЬ (для разработчиков)
-- Цены упали → ВКЛЮЧИТЬ если для consumer
-- Научный прорыв → ВКЛЮЧИТЬ только если практическое применение понятно
+✅ "OpenAI launches enterprise API tier" → business, автоматизация
+✅ "AWS announces new AI infrastructure" → enterprise, инфраструктура
+✅ "Company X automated support with AI, saved $500K" → business, кейс
+✅ "New no-code AI workflow builder" → business, инструмент
+❌ "ChatGPT can now edit your selfies" → consumer
+❌ "Free AI tool for photo editing" → consumer
+❌ "Best AI apps for students" → consumer
+❌ "AI meme generator goes viral" → consumer
 
 FALLBACK:
-- Сомневаешься в аудитории → audience: "mixed", снизь confidence на 15
-- Непонятно enterprise или consumer → needs_review: true
+- Сомневаешься → audience: "mixed", снизь confidence на 15
 - Пустое описание → confidence -= 20
 
 СТАТЬЯ:
@@ -341,14 +333,14 @@ FALLBACK:
 Ссылка: {article.get('link', '')}
 
 Определи:
-1. Релевантна для CONSUMER аудитории?
+1. Релевантна для БИЗНЕС-аудитории?
 2. Уверенность (0-100)
-3. Категория (tool/news/update/trend/comparison/tip)
-4. Аудитория (consumer/enterprise/mixed)
+3. Категория (automation/tools/strategy/news/cases/education)
+4. Аудитория (business/enterprise/mixed/consumer)
 5. Причина (кратко на русском)
 
 Ответь ТОЛЬКО валидным JSON без markdown:
-{{"relevant": true/false, "confidence": 0-100, "category": "...", "audience": "consumer/enterprise/mixed", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
+{{"relevant": true/false, "confidence": 0-100, "category": "...", "audience": "business/enterprise/mixed/consumer", "reason": "...", "needs_review": false, "url_check_needed": false}}"""
 
         try:
             response = self._call_api(self.haiku_model, prompt, max_tokens=250)
@@ -422,7 +414,7 @@ FALLBACK:
 
             return GeneratedPost(
                 text=text,
-                format=post_format or PostFormat.AI_TOOL,
+                format=post_format or PostFormat.AI_NEWS,
                 article_url=article.get("link", ""),
                 article_title=article.get("title", ""),
                 image_prompt=image_prompt,
@@ -434,62 +426,48 @@ FALLBACK:
 
     def _get_universal_prompt(self, article: Dict) -> str:
         """
-        Universal prompt for long-form posts (1500-2000 chars).
-        Style: Databoard-inspired, links embedded in text.
+        Universal prompt — short post for photo caption + "Далі" button.
         """
-        article_link = article.get('link', '')
         source_name = article.get('source', 'источник')
 
-        return f"""Ты — копирайтер Telegram-канала "AI для дома" (@ai_dlya_doma).
+        return f"""Напиши пост для Telegram-канала @ai_dlya_doma. Это caption под картинкой.
 
-АУДИТОРИЯ:
-- Все, кто интересуется AI и хочет применять его в жизни
-- Не только программисты — обычные люди тоже
-- Ценят: актуальность, практическую пользу, конкретику
+ФРЕЙМВОРК PAS (Problem → Agitate → Solve):
+🔥 <b>[ХУК — 1-2 строки. Шок-факт, цифра, провокация или вопрос.]</b>
 
-СТИЛЬ:
-- Информативный, энергичный, но без кликбейта
-- Эмодзи: 1-2 штуки, только в заголовке
-- Обращение: нейтральное или на "вы"
-- Ссылки ВНУТРИ текста, не в конце
-- Длина: 700-900 символов (это важно для Telegram caption!)
+[Problem: Что случилось — 2-3 предложения. Конкретика, названия, цифры.]
 
-СТРУКТУРА ПОСТА:
-```
-[Эмодзи] <b>Заголовок — короткий, цепляющий</b>
+[Agitate: Почему бизнесу нельзя это игнорировать — 2-3 предложения.]
 
-Первый абзац — суть новости. О чём речь, почему это интересно. 2-3 предложения.
+[Solve: Обрыв на интересном — интрига → кнопка «Далі».]
 
-Второй абзац — детали. Что именно изменилось, как работает, какие функции. Здесь можно <a href="URL">вставить ссылку</a> на источник или сам сервис.
+👇 Вовлекающий вопрос к аудитории (1 строка)
 
-Третий абзац — контекст. Почему это важно, как это влияет на рынок/пользователей, что думают эксперты.
+🤖 Тільки важливе про AI → @klymo_tech
 
-[Опционально] Четвёртый абзац — практический вывод или вопрос к читателям.
-```
+СТИЛИ ХУКОВ (чередуй каждый раз новый!):
+- Цифра: "73% компаний уже это используют."
+- Вопрос: "Сколько стоит один час простоя вашего менеджера?"
+- Контрарианство: "Вам не нужен ChatGPT. Вам нужен процесс."
+- Провокация: "Ваши конкуренты прочитали это вчера."
+- Микро-история: "Клиент позвонил: «200 заявок и 2 менеджера»"
 
-АНТИ-ПАТТЕРНЫ (НИКОГДА не используй):
-- Шаблонные CTA типа "👉 Попробовать", "🔗 Ссылка"
-- Голые URL без <a> тегов
-- "Нейросеть" → используй "AI" или название модели
-- "Революционный", "уникальный", "прорывной"
-- Начало с "Представляем...", "Встречайте..."
-- Список фич через буллеты в каждом посте
-- Пустые обещания без конкретики
+ПРАВИЛА:
+- 500-800 символов (caption под фото!)
+- БЕЗ разделительных линий (──────)
+- БЕЗ ссылок в тексте (ссылка в кнопке под постом)
+- Хук <b>жирным</b>
+- Тон: экспертный, дерзкий, на «вы»
+- НИКОГДА: «друзья», «давайте», «революционный», «в современном мире», хештеги
+- НЕ начинать с: «Представляем...», «Встречайте...», «Компания X объявила...»
 
-ПРАВИЛА ССЫЛОК:
-- Ссылки встраивай В ТЕКСТ: <a href="URL">читайте подробнее</a>
-- Текст ссылки должен быть осмысленным: "пишет TechCrunch", "сообщает компания"
-- Можно добавить 1-2 ссылки, не больше
-- Основная ссылка на источник: {article_link}
-
-СТАТЬЯ ДЛЯ ОБРАБОТКИ:
+СТАТЬЯ:
 Заголовок: {article.get('title', '')}
 Источник: {source_name}
-Описание: {article.get('summary', '')[:800]}
-Ссылка: {article_link}
+Описание: {article.get('summary', '')[:600]}
 
-Ответ ТОЛЬКО JSON без markdown блоков:
-{{"text": "готовый пост с HTML-разметкой, 700-900 символов", "image_prompt": "DALL-E prompt in English, tech illustration style, modern, clean, 40 words max"}}"""
+Ответ ТОЛЬКО JSON:
+{{"text": "пост 500-800 символов: <b>хук</b> + PAS фреймворк + 👇 вопрос + 🤖 Тільки важливе про AI → @klymo_tech", "image_prompt": "3D render of [конкретный объект по теме статьи — узнаваемая техника, здание, символ]. Clean studio lighting, soft shadows, premium feel, minimal background, no text, no people, 30 words"}}"""
 
 
     def generate_post_for_rubric(
@@ -525,27 +503,24 @@ FALLBACK:
             article_link = article.get('link', '')
             source_name = article.get('source', 'источник')
 
-            prompt = f"""Ты — копирайтер Telegram-канала "AI для дома" (@ai_dlya_doma).
+            prompt = f"""Напиши пост для Telegram-канала @ai_dlya_doma. Это caption под картинкой.
 
-АУДИТОРИЯ: Все, кто интересуется AI — от новичков до продвинутых.
-
-РУБРИКА И ФОРМАТ:
 {rubric_template}
 
-СТАТЬЯ ДЛЯ ОБРАБОТКИ:
+СТАТЬЯ:
 Заголовок: {article.get('title', '')}
 Источник: {source_name}
-Описание: {article.get('summary', '')[:800]}
-Ссылка: {article_link}
+Описание: {article.get('summary', '')[:600]}
 
-ПРАВИЛА:
-- Используй HTML-разметку Telegram: <b>, <i>, <a href="">
-- Ссылки встраивай в текст
-- Длина: 700-900 символов
-- Замени [URL] на реальную ссылку: {article_link}
+ОБЩИЕ ПРАВИЛА:
+- HTML: <b>, <i>, <code>
+- БЕЗ ссылок в тексте (ссылка будет в кнопке "Далі")
+- БЕЗ линий-разделителей
+- Без хештегов
+- Тон: экспертный, дерзкий, на «вы»
 
 Ответ ТОЛЬКО JSON:
-{{"text": "готовый пост", "image_prompt": "DALL-E prompt, 40 words"}}"""
+{{"text": "пост 400-700 символов", "image_prompt": "3D render of [конкретный объект по теме статьи — узнаваемая техника, здание, символ]. Clean studio lighting, soft shadows, premium feel, minimal background, no text, no people, 30 words"}}"""
 
             response = self._call_api(self.sonnet_model, prompt, max_tokens=1500)
 
@@ -567,15 +542,15 @@ FALLBACK:
 
             # Map rubric to PostFormat
             format_map = {
-                "tool_review": PostFormat.AI_TOOL,
-                "news": PostFormat.AI_TOOL,
-                "prompt_home": PostFormat.PROMPT_DAY,
-                "lifehack": PostFormat.QUICK_TIP,
-                "free_service": PostFormat.AI_TOOL,
-                "collection": PostFormat.CHECKLIST,
-                "digest": PostFormat.CHECKLIST,
+                "ai_news": PostFormat.AI_NEWS,
+                "tool_review": PostFormat.TOOL_REVIEW,
+                "case_study": PostFormat.CASE_STUDY,
+                "ai_vs_manual": PostFormat.AI_VS_MANUAL,
+                "business_prompt": PostFormat.BUSINESS_PROMPT,
+                "ai_explainer": PostFormat.AI_EXPLAINER,
+                "weekly_digest": PostFormat.WEEKLY_DIGEST,
             }
-            post_format = format_map.get(rubric_name, PostFormat.AI_TOOL)
+            post_format = format_map.get(rubric_name, PostFormat.AI_NEWS)
 
             return GeneratedPost(
                 text=text,
@@ -592,26 +567,26 @@ FALLBACK:
 
     def generate_image_prompt(self, post: GeneratedPost) -> str:
         """
-        Generate DALL-E prompt for post image.
+        Generate image prompt in KLYMO style.
         Uses Haiku for cost efficiency.
         """
         if post.image_prompt:
             return post.image_prompt
 
-        prompt = f"""Create a DALL-E 3 image prompt for this Telegram post:
+        prompt = f"""Create an image prompt for this Telegram post:
 
 POST:
 {post.text[:300]}
 
-STYLE REQUIREMENTS:
-- Flat design with soft gradients
-- Pastel colors: light blue, pink, mint, lavender
-- Minimalist icons
-- Isometric perspective
+STYLE REQUIREMENTS (KLYMO brand):
+- Abstract geometric visualization
+- Dark background (#0D0D1A to #1A0A2E)
+- Purple gradients (#6B2FA0 to #9B59B6)
+- Cyan accents (#00D4FF)
+- Futuristic, professional mood
 - NO text on image
-- NO people faces
-- Cozy, friendly feeling
-- Modern, clean look
+- NO people, NO faces, NO hands
+- Neon glow effects
 
 Format: 1024x1024, English, 50-80 words.
 
@@ -621,10 +596,10 @@ Respond with ONLY the prompt, no explanations."""
             return self._call_api(self.haiku_model, prompt, max_tokens=150)
         except Exception as e:
             logger.error(f"Error generating image prompt: {e}")
-            return "Flat design illustration, pastel colors, minimalist icons, cozy modern aesthetic, soft gradients, no text"
+            return "Abstract geometric visualization, dark background #0D0D1A, purple gradients #6B2FA0, cyan accents #00D4FF, futuristic nodes and data streams, neon glow, no text no people"
 
     def filter_and_rank_articles(
-        self, articles: List[Dict], max_posts: int = 5
+        self, articles: List[Dict], max_posts: int = 1
     ) -> List[tuple]:
         """
         Filter relevant articles and rank by confidence.
@@ -648,7 +623,7 @@ Respond with ONLY the prompt, no explanations."""
         return classified[:max_posts]
 
     def generate_daily_posts(
-        self, articles: List[Dict], count: int = 5
+        self, articles: List[Dict], count: int = 1
     ) -> List[GeneratedPost]:
         """
         Generate posts for the day from articles.
@@ -671,11 +646,11 @@ Respond with ONLY the prompt, no explanations."""
 
         posts = []
         for article, classification in ranked:
-            format_str = classification.get("format", "ai_tool")
+            format_str = classification.get("format", "ai_news")
             try:
                 post_format = PostFormat(format_str)
             except ValueError:
-                post_format = PostFormat.AI_TOOL
+                post_format = PostFormat.AI_NEWS
 
             post = self.generate_post(article, post_format)
             if post:
@@ -696,10 +671,10 @@ if __name__ == "__main__":
 
     # Test with dummy article
     test_article = {
-        "title": "Canva launches AI photo editor for Instagram",
+        "title": "OpenAI launches enterprise automation platform for SMBs",
         "source": "TechCrunch",
-        "summary": "Canva announced a new AI-powered photo editor that can automatically enhance photos, remove backgrounds, and suggest Instagram-ready filters. The tool is free for basic use.",
-        "link": "https://example.com/canva-ai",
+        "summary": "OpenAI announced a new enterprise platform that helps small businesses automate customer support, data processing, and report generation. Early adopters report 60% reduction in operational costs.",
+        "link": "https://example.com/openai-enterprise",
     }
 
     print("Testing classification...")
@@ -708,7 +683,7 @@ if __name__ == "__main__":
 
     if result and result.get("relevant"):
         print("\nGenerating post...")
-        post = generator.generate_post(test_article, PostFormat.AI_TOOL)
+        post = generator.generate_post(test_article, PostFormat.AI_NEWS)
         if post:
             print(f"\n{post.text}")
             print(f"\nImage prompt: {post.image_prompt}")

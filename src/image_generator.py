@@ -1,4 +1,4 @@
-"""Генератор изображений через GPT Image 1 Mini."""
+"""Генератор изображений через GPT Image 1 (KLYMO Business Pivot)."""
 
 import base64
 import os
@@ -12,6 +12,18 @@ from src.config_loader import get_image_template
 from src.logger import get_logger
 
 logger = get_logger(__name__)
+
+# KLYMO Visual Style — Modern 3D render, как у Apple/Google tech blogs
+KLYMO_VISUAL_STYLE = (
+    "Style: Modern clean 3D render, photorealistic materials, soft studio lighting. "
+    "Like Apple or Google product photography — premium, minimal, elegant. "
+    "Shallow depth of field, soft shadows, subtle reflections. "
+    "Draw SPECIFIC recognizable objects related to the article topic. "
+    "Vary color palettes between images — not always the same colors. "
+    "Clean background — solid gradient or soft blur. "
+    "No text, no watermarks, no people, no faces, no hands. "
+    "Square 1024x1024, centered composition."
+)
 
 
 class ImageGenerator:
@@ -36,21 +48,18 @@ class ImageGenerator:
         filename: Optional[str] = None
     ) -> Optional[str]:
         """
-        Сгенерировать изображение.
+        Сгенерировать изображение в KLYMO стиле.
 
         Args:
             prompt: Текстовый промпт для генерации
-            category: Категория для шаблона (kitchen, kids, home, finance, planning)
+            category: Рубрика (ai_news, tool_review, case_study, etc.)
             filename: Имя файла для сохранения (без расширения)
 
         Returns:
             Путь к сохранённому файлу или None при ошибке
         """
-        # Если есть категория, добавляем шаблон
-        if category:
-            template = get_image_template(category)
-            if template:
-                prompt = f"{template}\n\nДополнительно: {prompt}"
+        # Строим промпт: KLYMO стиль + описание сцены от Claude
+        prompt = f"{KLYMO_VISUAL_STYLE}\n\nScene: {prompt}"
 
         logger.info(f"Генерирую изображение: {prompt[:100]}...")
 
@@ -98,47 +107,45 @@ class ImageGenerator:
         post_id: Optional[int] = None
     ) -> Tuple[Optional[str], str]:
         """
-        Умный выбор стратегии получения изображения.
-
-        1. Если OG-изображение качественное (мин 800px) — используем его
-        2. Иначе — генерируем через GPT Image
+        OG-first стратегия: сначала берём картинку из статьи (бесплатно),
+        генерируем через AI только если OG нет или она слишком мелкая.
 
         Args:
-            og_image_url: URL OG-изображения из источника
-            image_prompt: Промпт для генерации (если потребуется)
-            category: Категория контента для шаблона
+            og_image_url: URL OG-картинки из статьи
+            image_prompt: Промпт для AI-генерации (fallback)
+            category: Рубрика
             post_id: ID поста для имени файла
 
         Returns:
             (path_to_image, source_type)
-            source_type: 'og_image', 'generated', 'none'
+            source_type: 'og', 'generated', 'none'
         """
-        from src.og_parser import check_image_quality, download_image, _is_icon_or_logo
+        MIN_IMAGE_SIZE_KB = 15  # Картинки <15KB — скорее всего placeholder/иконка
 
-        # Шаг 1: Проверяем OG-изображение
-        if og_image_url:
-            if _is_icon_or_logo(og_image_url):
-                logger.info(f"OG image looks like logo/icon, will generate instead")
-            else:
-                quality = check_image_quality(og_image_url)
+        # Step 1: Пробуем OG-картинку из статьи
+        if og_image_url and og_image_url.startswith(("http://", "https://")):
+            try:
+                from og_parser import download_image
+                local_path = download_image(og_image_url)
+                if local_path:
+                    # Проверяем размер — мелкие картинки отбрасываем
+                    file_size_kb = os.path.getsize(local_path) / 1024
+                    if file_size_kb >= MIN_IMAGE_SIZE_KB:
+                        logger.info(f"Using OG image ({file_size_kb:.0f}KB): {local_path}")
+                        return (local_path, "og")
+                    else:
+                        logger.info(f"OG image too small ({file_size_kb:.0f}KB), skipping")
+                        os.remove(local_path)
+            except Exception as e:
+                logger.warning(f"Failed to download OG image: {e}")
 
-                if quality.get("is_valid"):
-                    local_path = download_image(og_image_url)
-                    if local_path:
-                        logger.info(
-                            f"Using OG image: {quality['width']}x{quality['height']}"
-                        )
-                        return (local_path, "og_image")
-                else:
-                    logger.info(f"OG image rejected: {quality.get('reason')}")
-
-        # Шаг 2: Генерируем через AI
+        # Step 2: Fallback — генерируем через GPT Image 1
         if image_prompt or category:
             try:
                 filename = f"post_{post_id}" if post_id else None
                 local_path = self.generate(image_prompt or "", category, filename)
                 if local_path:
-                    logger.info(f"Generated image: {local_path}")
+                    logger.info(f"Generated AI image: {local_path}")
                     return (local_path, "generated")
             except Exception as e:
                 logger.error(f"Failed to generate image: {e}")
