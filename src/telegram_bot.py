@@ -485,18 +485,19 @@ class TelegramBotHandler:
                 rubric = post.get("rubric") or post.get("format", "unknown")
                 image_url = post.get("image_url")
 
-                # Информация об изображении
-                if image_url:
-                    if image_url.startswith(("http://", "https://")):
-                        image_info = "🖼 Изображение: OG из источника"
-                    else:
-                        image_info = "🖼 Изображение: локальный файл"
-                elif post.get("image_prompt"):
-                    image_info = "🎨 Изображение: будет сгенерировано"
-                else:
-                    image_info = "⚠️ Без изображения"
+                # Скачиваем OG-картинку если это URL
+                if image_url and image_url.startswith(("http://", "https://")):
+                    try:
+                        from og_parser import download_image
+                        local_path = download_image(image_url)
+                        if local_path:
+                            image_url = local_path
+                            from post_queue import PostQueue
+                            PostQueue().update_image_url(post["id"], local_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to download OG image for preview: {e}")
 
-                # Если есть локальный файл изображения — отправляем как фото
+                # Отправляем с картинкой если есть локальный файл
                 if image_url and not image_url.startswith(("http://", "https://")):
                     try:
                         caption = f"<b>#{post['id']}</b> | {rubric}\n\n{post_preview[:900]}"
@@ -510,10 +511,9 @@ class TelegramBotHandler:
                     except Exception as e:
                         logger.warning(f"Failed to send photo preview: {e}")
 
-                # Иначе отправляем текст с информацией об изображении
+                # Без картинки — текстом
                 await update.message.reply_text(
-                    f"<b>#{post['id']}</b> | {rubric}\n"
-                    f"{image_info}\n\n"
+                    f"<b>#{post['id']}</b> | {rubric}\n\n"
                     f"{post_preview}",
                     parse_mode="HTML",
                     reply_markup=self._get_moderation_keyboard(post["id"]),
@@ -654,29 +654,55 @@ class TelegramBotHandler:
                     reply_markup=self._get_main_keyboard(),
                 )
 
-                # Show first post for quick moderation
+                # Show first post for quick moderation (with image)
                 if post_ids:
                     first_post = queue.get_post_by_id(post_ids[0]) if hasattr(queue, 'get_post_by_id') else None
                     if first_post is None:
-                        # Fallback: get from moderation queue
                         first_post = mq.get_post_by_id(post_ids[0])
 
                     if first_post:
-                        # Strip HTML tags to avoid unclosed tag errors when truncating
                         clean_text = strip_html_tags(first_post["post_text"])
                         post_preview = clean_text[:800]
                         if len(clean_text) > 800:
                             post_preview += "..."
 
-                        await update.message.reply_text(
-                            f"<b>Первый пост #{first_post['id']}</b>\n\n"
-                            f"{post_preview}",
-                            parse_mode="HTML",
-                            reply_markup=self._get_moderation_keyboard(first_post["id"]),
-                            disable_web_page_preview=True,
-                        )
+                        # Скачиваем картинку для превью
+                        image_url = first_post.get("image_url")
+                        if image_url and image_url.startswith(("http://", "https://")):
+                            try:
+                                from og_parser import download_image
+                                local_path = download_image(image_url)
+                                if local_path:
+                                    image_url = local_path
+                                    queue.update_image_url(first_post["id"], local_path)
+                            except Exception as e:
+                                logger.warning(f"Failed to download image for preview: {e}")
+
+                        # Отправляем с картинкой если есть
+                        sent = False
+                        if image_url and not image_url.startswith(("http://", "https://")):
+                            try:
+                                caption = f"<b>Пост #{first_post['id']}</b>\n\n{post_preview[:900]}"
+                                await update.message.reply_photo(
+                                    photo=open(image_url, "rb"),
+                                    caption=caption,
+                                    parse_mode="HTML",
+                                    reply_markup=self._get_moderation_keyboard(first_post["id"]),
+                                )
+                                sent = True
+                            except Exception as e:
+                                logger.warning(f"Failed to send photo preview: {e}")
+
+                        if not sent:
+                            await update.message.reply_text(
+                                f"<b>Пост #{first_post['id']}</b>\n\n"
+                                f"{post_preview}",
+                                parse_mode="HTML",
+                                reply_markup=self._get_moderation_keyboard(first_post["id"]),
+                                disable_web_page_preview=True,
+                            )
             else:
-                # Legacy mode: schedule posts for auto-publishing
+                # Auto-publishing mode: schedule posts
                 times = ["10:00"]
                 post_ids = queue.schedule_posts_for_day(post_dicts, times=times)
 
@@ -686,11 +712,48 @@ class TelegramBotHandler:
                 stats = queue.get_stats()
                 await update.message.reply_text(
                     f"✅ Сгенерировано {len(posts)} постов!\n\n"
-                    f"📅 Расписание: {', '.join(times[:len(posts)])}\n"
-                    f"📊 В очереди: {stats.get('pending', 0)} постов\n\n"
-                    f"Используйте /preview чтобы посмотреть посты.",
+                    f"📅 Публикация: {', '.join(times[:len(posts)])}\n"
+                    f"📊 В очереди: {stats.get('pending', 0)} постов",
                     reply_markup=self._get_main_keyboard(),
                 )
+
+                # Превью первого поста с картинкой
+                if post_ids:
+                    first = queue.get_post_by_id(post_ids[0]) if hasattr(queue, 'get_post_by_id') else None
+                    if first:
+                        clean = strip_html_tags(first["post_text"])
+                        preview = clean[:800] + ("..." if len(clean) > 800 else "")
+                        image_url = first.get("image_url")
+
+                        if image_url and image_url.startswith(("http://", "https://")):
+                            try:
+                                from og_parser import download_image
+                                local_path = download_image(image_url)
+                                if local_path:
+                                    image_url = local_path
+                                    queue.update_image_url(first["id"], local_path)
+                            except Exception as e:
+                                logger.warning(f"Failed to download image: {e}")
+
+                        sent = False
+                        if image_url and not image_url.startswith(("http://", "https://")):
+                            try:
+                                caption = f"<b>Пост #{first['id']}</b> | ⏰ 10:00\n\n{preview[:900]}"
+                                await update.message.reply_photo(
+                                    photo=open(image_url, "rb"),
+                                    caption=caption,
+                                    parse_mode="HTML",
+                                )
+                                sent = True
+                            except Exception as e:
+                                logger.warning(f"Failed to send photo: {e}")
+
+                        if not sent:
+                            await update.message.reply_text(
+                                f"<b>Пост #{first['id']}</b> | ⏰ 10:00\n\n{preview}",
+                                parse_mode="HTML",
+                                disable_web_page_preview=True,
+                            )
 
         except Exception as e:
             logger.error(f"Error in /generate command: {e}")
@@ -720,12 +783,42 @@ class TelegramBotHandler:
                 }.get(post["status"], "❓")
 
                 scheduled = post.get("scheduled_at", "")[:16] if post.get("scheduled_at") else "—"
-
-                # Preview with HTML parsing for proper formatting
                 format_type = post.get('format', 'unknown')
-                preview = f"{status_emoji} Пост {i} ({format_type})\n⏰ {scheduled}\n\n"
-                preview += post["post_text"]
-                await update.message.reply_text(preview, parse_mode="HTML", disable_web_page_preview=True)
+                clean_text = strip_html_tags(post["post_text"])
+                text_preview = clean_text[:800] + ("..." if len(clean_text) > 800 else "")
+
+                image_url = post.get("image_url")
+
+                # Скачиваем OG если нужно
+                if image_url and image_url.startswith(("http://", "https://")):
+                    try:
+                        from og_parser import download_image
+                        local_path = download_image(image_url)
+                        if local_path:
+                            image_url = local_path
+                            queue.update_image_url(post["id"], local_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to download image: {e}")
+
+                # С картинкой
+                if image_url and not image_url.startswith(("http://", "https://")):
+                    try:
+                        caption = f"{status_emoji} <b>Пост {i}</b> ({format_type})\n⏰ {scheduled}\n\n{text_preview[:900]}"
+                        await update.message.reply_photo(
+                            photo=open(image_url, "rb"),
+                            caption=caption,
+                            parse_mode="HTML",
+                        )
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to send photo: {e}")
+
+                # Без картинки
+                await update.message.reply_text(
+                    f"{status_emoji} <b>Пост {i}</b> ({format_type})\n⏰ {scheduled}\n\n{text_preview}",
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
 
         except Exception as e:
             logger.error(f"Error in /preview command: {e}")
